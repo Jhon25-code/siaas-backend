@@ -1,3 +1,4 @@
 node_modules/
-.env
+módulos_de_nodo/
 .idea/
+.env
