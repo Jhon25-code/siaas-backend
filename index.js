@@ -4,35 +4,60 @@ const cors = require('cors');
 const app = express();
 
 /**
- *  CLAVE PARA RENDER
  * Render asigna el puerto dinámicamente
- * Localmente usará 3000
  */
 const PORT = process.env.PORT || 3000;
 
-//  Middleware
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-//  Memoria temporal (luego DB real)
+// Memoria temporal (luego DB real)
 const incidents = [];
 
-//  Endpoint de sincronización (Flutter)
+/**
+ * 🧠 SMART SCORE AUTOMÁTICO
+ */
+function calculateSmartScore({ tipo, severidad, latitude, longitude }) {
+  let score = 0;
+
+  // Base por severidad
+  if (severidad === 'grave') score += 50;
+  if (severidad === 'medio') score += 30;
+  if (severidad === 'leve') score += 15;
+
+  // GPS suma valor
+  if (latitude != null && longitude != null) score += 20;
+
+  // Tipo de incidente
+  if (tipo === 'insolacion') score += 10;
+  if (tipo === 'picadura_abeja') score += 15;
+  if (tipo === 'intoxicacion') score += 25;
+  if (tipo === 'corte') score += 20;
+
+  return score;
+}
+
+// Endpoint de sincronización (Flutter)
 app.post('/sync', (req, res) => {
   const incident = {
     tipo: req.body.tipo,
     descripcion: req.body.descripcion || '',
     severidad: req.body.severidad || 'leve',
-    smart_score: req.body.smart_score || 0,
     latitude: req.body.latitude ?? null,
     longitude: req.body.longitude ?? null,
     timestamp: req.body.timestamp,
+
+    // ⏱️ Hora real del servidor
     received_at: new Date().toISOString(),
   };
 
+  // 🧠 Calcular score automáticamente
+  incident.smart_score = calculateSmartScore(incident);
+
   incidents.push(incident);
 
-  console.log(' Incidente recibido:', incident);
+  console.log('📥 Incidente recibido:', incident);
 
   res.status(200).json({
     success: true,
@@ -41,12 +66,12 @@ app.post('/sync', (req, res) => {
   });
 });
 
-//  API para el dashboard
+// API para dashboard
 app.get('/incidents', (req, res) => {
   res.json(incidents);
 });
 
-//  Dashboard Web
+// Dashboard Web
 app.get('/', (req, res) => {
   res.send(`
 <!DOCTYPE html>
@@ -54,11 +79,12 @@ app.get('/', (req, res) => {
 <head>
 <meta charset="UTF-8">
 <title>SIAAS Dashboard</title>
+
 <style>
   body { font-family: Arial; background: #f4f6f8; padding: 20px; }
   h1 { color: #1976d2; }
   table { width: 100%; border-collapse: collapse; background: white; }
-  th, td { padding: 10px; border-bottom: 1px solid #ddd; }
+  th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; }
   th { background: #1976d2; color: white; }
 
   .leve-row { background: #e8f5e9; }
@@ -79,7 +105,7 @@ app.get('/', (req, res) => {
 </head>
 
 <body>
-<h1> SIAAS – Incidentes Recibidos</h1>
+<h1>🌱 SIAAS – Incidentes Recibidos</h1>
 
 <table>
 <thead>
@@ -89,7 +115,7 @@ app.get('/', (req, res) => {
   <th>Score</th>
   <th>Lat</th>
   <th>Lng</th>
-  <th>Hora</th>
+  <th>Fecha y Hora</th>
   <th>Severidad</th>
 </tr>
 </thead>
@@ -97,6 +123,25 @@ app.get('/', (req, res) => {
 </table>
 
 <script>
+// Formatear fecha ISO
+function formatDate(isoDate) {
+  const d = new Date(isoDate);
+  return d.toLocaleString('es-PE', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+// Redondear GPS
+function formatCoord(v) {
+  if (v === null || v === undefined) return '—';
+  return Number(v).toFixed(6);
+}
+
 function severityClass(sev) {
   if (sev === 'grave') return { row: 'grave-row', badge: 'grave' };
   if (sev === 'medio') return { row: 'medio-row', badge: 'medio' };
@@ -118,10 +163,10 @@ function loadIncidents() {
         tr.innerHTML =
           '<td>' + i.tipo + '</td>' +
           '<td>' + (i.descripcion || '-') + '</td>' +
-          '<td>' + i.smart_score + '</td>' +
-          '<td>' + (i.latitude ?? '-') + '</td>' +
-          '<td>' + (i.longitude ?? '-') + '</td>' +
-          '<td>' + i.received_at + '</td>' +
+          '<td><b>' + i.smart_score + '</b></td>' +
+          '<td>' + formatCoord(i.latitude) + '</td>' +
+          '<td>' + formatCoord(i.longitude) + '</td>' +
+          '<td>' + formatDate(i.received_at) + '</td>' +
           '<td><span class="badge ' + s.badge + '">' + i.severidad + '</span></td>';
 
         tbody.appendChild(tr);
@@ -138,15 +183,9 @@ setInterval(loadIncidents, 3000);
   `);
 });
 
-/**
- *  CLAVE
- * - 0.0.0.0 → Render + red
- * - process.env.PORT → Render
- */
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(` Servidor SIAAS escuchando en:
+  console.log(`🚀 Servidor SIAAS activo:
   → http://localhost:${PORT}
-  → http://127.0.0.1:${PORT}
-  → http://10.0.2.2:${PORT} (emulador Android)
+  → https://siaas-backend.onrender.com
   `);
 });
