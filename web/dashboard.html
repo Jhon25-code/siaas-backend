@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SIAAS | Panel Tópico</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+<div class="layout">
+    <aside class="sidebar">
+        <div class="logo"><b>SIAAS</b></div>
+        <div class="who" id="who"></div>
+
+        <nav>
+            <a id="tab-alertas" class="active" href="#alertas">📌 Alertas</a>
+            <a id="tab-historial" href="#historial">🕘 Historial</a>
+        </nav>
+
+        <button class="logout" id="logout">Cerrar sesión</button>
+    </aside>
+
+    <main class="main">
+        <h1 id="title">Alertas registradas</h1>
+
+        <div class="legend">
+            <span><b>IS</b> (Índice de Severidad):</span>
+            <span class="pill green">0–30 Leve</span>
+            <span class="pill orange">31–50 Medio</span>
+            <span class="pill red">≥51 Grave</span>
+        </div>
+
+        <div id="cards" class="cards"></div>
+        <p class="muted" id="empty"></p>
+    </main>
+</div>
+
+<!--  MODAL DETALLE (Nuevo) -->
+<div id="modal" class="modal hidden" aria-hidden="true">
+    <div class="modalBackdrop" id="modalCloseBackdrop"></div>
+
+    <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modalHeader">
+            <div>
+                <div id="modalTitle" class="modalTitle">Detalle del incidente</div>
+                <div id="modalSub" class="muted small"></div>
+            </div>
+            <button id="modalCloseBtn" class="iconBtn" aria-label="Cerrar">✕</button>
+        </div>
+
+        <div id="modalBody" class="modalBody">
+            <!-- contenido dinámico desde dashboard.js -->
+        </div>
+
+        <div class="modalFooter">
+            <button id="modalCloseBtn2" class="btn">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SIAAS | Login</title>
+
+    <!-- Estilos -->
+    <link rel="stylesheet" href="/css/styles.css" />
+</head>
+
+<body class="bg">
+
+<div class="card">
+    <h1>SIAAS</h1>
+    <p class="muted">Panel Web</p>
+
+    <form id="loginForm" autocomplete="off">
+
+        <label for="username">Usuario</label>
+        <input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="topico / admin"
+                required
+        />
+
+        <label for="password">Contraseña</label>
+        <input
+                id="password"
+                name="password"
+                type="password"
+                placeholder="123456"
+                required
+        />
+
+        <button type="submit">Ingresar</button>
+
+        <!-- Mensaje de error -->
+        <p id="msg" class="error"></p>
+
+    </form>
+</div>
+
+<!-- Scripts (al final SIEMPRE) -->
+<script src="/js/auth.js"></script>
+
+</body>
+</html>
