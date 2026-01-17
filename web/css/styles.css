@@ -4,7 +4,7 @@ body { margin:0; font-family: Arial, sans-serif; background:#f4f6f8; }
 .small { font-size:12px; }
 .error { color:#c62828; margin-top:10px; }
 
-/* ====== LOGIN ====== */
+/* ====== LOGIN (actual) ====== */
 .bg{
   display:flex;
   align-items:center;
@@ -140,6 +140,7 @@ button:active{ transform:scale(.99); }
   .sidebar{ width:auto; border-radius:0; }
   .main{ padding:16px; }
 }
+
 /* ====== MODAL (Detalle Incidente) ====== */
 .modal.hidden { display: none; }
 
@@ -271,3 +272,151 @@ button:active{ transform:scale(.99); }
   margin-left: -17px;
 }
 
+/* =====================================================
+   LOGIN PRO (SIAAS) - SOLO SE ACTIVA SI USAS login.html PRO
+   Usa clases: loginPage, loginHero, loginWrap, loginCard, etc.
+   ===================================================== */
+
+:root{
+  --siaas-card: rgba(255,255,255,.92);
+  --siaas-text: #0f172a;
+  --siaas-muted: #475569;
+  --siaas-line: rgba(15,23,42,.10);
+  --siaas-primary: #1f6f3b;  /* mismo verde del sidebar */
+  --siaas-primary2: #16552c;
+  --siaas-danger: #c62828;
+}
+
+body.loginPage{
+  margin: 0;
+  min-height: 100vh;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  color: var(--siaas-text);
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  background: #0b1220;
+}
+
+.loginHero{
+  min-height: 100vh;
+  background:
+    linear-gradient(90deg, rgba(11,18,32,.75), rgba(11,18,32,.15)),
+    url("/images/bg_agroindustrial.jpg");
+  background-size: cover;
+  background-position: center;
+}
+
+.loginWrap{
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background:
+    radial-gradient(1200px 600px at 30% 20%, rgba(34,197,94,.16), transparent 60%),
+    radial-gradient(900px 500px at 80% 60%, rgba(59,130,246,.12), transparent 55%),
+    #f8fafc;
+}
+
+.loginCard{
+  width: min(460px, 100%);
+  background: var(--siaas-card);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--siaas-line);
+  border-radius: 18px;
+  padding: 26px 24px;
+  box-shadow: 0 20px 60px rgba(2,6,23,.18);
+}
+
+.brand{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brandLogo{
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: white;
+  border: 1px solid var(--siaas-line);
+  padding: 6px;
+}
+
+.brandText h1{
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: .3px;
+}
+
+.brandText p{
+  margin: 2px 0 0 0;
+  color: var(--siaas-muted);
+  font-size: 13px;
+}
+
+.divider{
+  height: 1px;
+  background: var(--siaas-line);
+  margin: 18px 0;
+}
+
+.form label{
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
+  margin: 10px 0 6px;
+  color: #111827;
+}
+
+.form input{
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(15,23,42,.15);
+  outline: none;
+  background: rgba(255,255,255,.9);
+  transition: .15s ease;
+}
+
+.form input:focus{
+  border-color: rgba(31,111,59,.65);
+  box-shadow: 0 0 0 4px rgba(31,111,59,.16);
+}
+
+.btnPrimary{
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 800;
+  color: white;
+  background: linear-gradient(180deg, var(--siaas-primary), var(--siaas-primary2));
+  box-shadow: 0 10px 25px rgba(31,111,59,.22);
+  transition: transform .08s ease, filter .15s ease;
+}
+
+.btnPrimary:hover{ filter: brightness(1.03); }
+.btnPrimary:active{ transform: translateY(1px); }
+
+.loginCard .error{
+  margin: 10px 0 0 0;
+  color: var(--siaas-danger);
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.hint{
+  margin: 14px 0 0 0;
+  font-size: 12px;
+  color: var(--siaas-muted);
+  text-align: center;
+}
+
+/* Responsive: en móvil se oculta el hero */
+@media (max-width: 900px){
+  body.loginPage{ grid-template-columns: 1fr; }
+  .loginHero{ display: none; }
+  .loginWrap{ min-height: 100vh; }
+}
