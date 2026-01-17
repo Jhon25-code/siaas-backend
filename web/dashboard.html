@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>SIAAS | Panel Tópico</title>
+    <title>SIAAS | Panel</title>
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
@@ -13,29 +13,59 @@
         <div class="who" id="who"></div>
 
         <nav>
+            <!-- Incidentes -->
+            <div class="muted small" style="margin:10px 0 6px;">INCIDENTES</div>
             <a id="tab-alertas" class="active" href="#alertas">📌 Alertas</a>
             <a id="tab-historial" href="#historial">🕘 Historial</a>
+
+            <!-- Admin tools -->
+            <div id="adminSection" style="display:none;">
+                <div class="muted small" style="margin:14px 0 6px;">ADMIN</div>
+                <a id="nav-users" href="#usuarios">👥 Usuarios</a>
+                <a id="nav-reports" href="#reportes">📄 Reportes</a>
+            </div>
         </nav>
 
         <button class="logout" id="logout">Cerrar sesión</button>
     </aside>
 
     <main class="main">
-        <h1 id="title">Alertas registradas</h1>
+        <h1 id="title">Panel</h1>
 
-        <div class="legend">
+        <!-- Leyenda IS -->
+        <div class="legend" id="legendIS">
             <span><b>IS</b> (Índice de Severidad):</span>
             <span class="pill green">0–30 Leve</span>
             <span class="pill orange">31–50 Medio</span>
             <span class="pill red">≥51 Grave</span>
         </div>
 
+        <!-- Contenedor principal -->
         <div id="cards" class="cards"></div>
         <p class="muted" id="empty"></p>
+
+        <!-- Sección usuarios (solo ADMIN) -->
+        <div id="usersView" style="display:none; margin-top:18px;">
+            <h2 style="margin:0 0 10px;">Gestión de usuarios</h2>
+            <div class="muted small" style="margin-bottom:10px;">
+                Solo visible para ADMIN. Aquí se listan usuarios del sistema.
+            </div>
+            <div id="usersTableWrap"></div>
+        </div>
+
+        <!-- Sección reportes (solo ADMIN) -->
+        <div id="reportsView" style="display:none; margin-top:18px;">
+            <h2 style="margin:0 0 10px;">Reportes</h2>
+            <div class="muted small" style="margin-bottom:10px;">
+                Exporta incidentes (CSV) para abrir en Excel.
+            </div>
+            <button class="btn primary" id="btnExportCsv">Descargar CSV</button>
+            <div class="muted small" style="margin-top:8px;" id="reportsMsg"></div>
+        </div>
     </main>
 </div>
 
-<!--  MODAL DETALLE (Nuevo) -->
+<!-- MODAL DETALLE -->
 <div id="modal" class="modal hidden" aria-hidden="true">
     <div class="modalBackdrop" id="modalCloseBackdrop"></div>
 
@@ -48,9 +78,7 @@
             <button id="modalCloseBtn" class="iconBtn" aria-label="Cerrar">✕</button>
         </div>
 
-        <div id="modalBody" class="modalBody">
-            <!-- contenido dinámico desde dashboard.js -->
-        </div>
+        <div id="modalBody" class="modalBody"></div>
 
         <div class="modalFooter">
             <button id="modalCloseBtn2" class="btn">Cerrar</button>

@@ -9,8 +9,47 @@ document.getElementById('logout').onclick = () => {
   window.location.href = '/login.html';
 };
 
+// Datos de sesión
+const SESSION = {
+  token: localStorage.getItem('token') || '',
+  role: (localStorage.getItem('role') || '').toUpperCase(),
+  name: localStorage.getItem('name') || '',
+  zone: localStorage.getItem('zone') || '',
+  username: localStorage.getItem('username') || '',
+};
+
+// Mostrar "quién"
 document.getElementById('who').textContent =
-  `${localStorage.getItem('name') || ''} (${localStorage.getItem('role') || ''})`;
+  `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;
+
+/**
+ * ✅ Control de acceso por rol
+ * Este dashboard es para WEB (TOPICO/SUPERVISOR/ADMIN).
+ */
+const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
+if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
+  alert('No autorizado para acceder al panel web.');
+  localStorage.clear();
+  window.location.href = '/login.html';
+}
+
+// ✅ Permiso para cambiar estado
+const CAN_CHANGE_STATUS = ['TOPICO', 'SUPERVISOR', 'ADMIN'].includes(SESSION.role);
+
+// ✅ Admin section (usuarios/reportes)
+const IS_ADMIN = SESSION.role === 'ADMIN';
+const adminSection = document.getElementById('adminSection');
+if (adminSection) adminSection.style.display = IS_ADMIN ? '' : 'none';
+
+// Vistas nuevas (dashboard.html nuevo)
+const usersView = document.getElementById('usersView');
+const reportsView = document.getElementById('reportsView');
+const cardsEl = document.getElementById('cards');
+const emptyEl = document.getElementById('empty');
+const legendIS = document.getElementById('legendIS');
+const usersTableWrap = document.getElementById('usersTableWrap');
+const btnExportCsv = document.getElementById('btnExportCsv');
+const reportsMsg = document.getElementById('reportsMsg');
 
 /* ---------- helpers ---------- */
 function sevColor(sev) {
@@ -49,33 +88,50 @@ function diffMin(aIso, bIso) {
   return Math.round((b - a) / 60000);
 }
 
-/* ---------- tabs ---------- */
-function getMode() {
-  return (window.location.hash || '#alertas').toLowerCase() === '#historial'
-    ? 'historial'
-    : 'alertas';
+/* ---------- router por hash ---------- */
+function getRoute() {
+  const h = (window.location.hash || '#alertas').toLowerCase();
+  if (h === '#usuarios') return 'usuarios';
+  if (h === '#reportes') return 'reportes';
+  if (h === '#historial') return 'historial';
+  return 'alertas';
 }
 
-function renderTabsUI() {
-  const mode = getMode();
+function setActiveNav(route) {
+  // tabs existentes
   const a = document.getElementById('tab-alertas');
-  const h = document.getElementById('tab-historial');
-  const title = document.getElementById('title');
+  const hi = document.getElementById('tab-historial');
 
-  if (mode === 'historial') {
-    a.classList.remove('active');
-    h.classList.add('active');
-    title.textContent = 'Historial (incidentes cerrados)';
+  if (a) a.classList.remove('active');
+  if (hi) hi.classList.remove('active');
+
+  // nav admin
+  const nu = document.getElementById('nav-users');
+  const nr = document.getElementById('nav-reports');
+  if (nu) nu.classList.remove('active');
+  if (nr) nr.classList.remove('active');
+
+  if (route === 'historial') {
+    if (hi) hi.classList.add('active');
+  } else if (route === 'usuarios') {
+    if (nu) nu.classList.add('active');
+  } else if (route === 'reportes') {
+    if (nr) nr.classList.add('active');
   } else {
-    h.classList.remove('active');
-    a.classList.add('active');
-    title.textContent = 'Alertas registradas';
+    if (a) a.classList.add('active');
   }
 }
 
-function getIncidentsUrlByMode() {
-  if (getMode() === 'historial') return '/incidents?status=CERRADA';
-  return '/incidents?status=NUEVA,RECIBIDA,EN_ATENCION';
+function showOnly(view) {
+  // view: 'incidents' | 'users' | 'reports'
+  if (usersView) usersView.style.display = view === 'users' ? '' : 'none';
+  if (reportsView) reportsView.style.display = view === 'reports' ? '' : 'none';
+
+  // Incidentes (cards, empty, legend)
+  const showIncidents = view === 'incidents';
+  if (cardsEl) cardsEl.style.display = showIncidents ? '' : 'none';
+  if (emptyEl) emptyEl.style.display = showIncidents ? '' : 'none';
+  if (legendIS) legendIS.style.display = showIncidents ? '' : 'none';
 }
 
 /* ---------- modal ---------- */
@@ -88,11 +144,9 @@ const modalCloseBtn = document.getElementById('modalCloseBtn');
 const modalCloseBtn2 = document.getElementById('modalCloseBtn2');
 
 function openModal(incident) {
-  // Llenar cabecera
   modalTitle.textContent = `Detalle: ${(incident.tipo || '').replaceAll('_',' ')}`;
-  modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}`;
+  modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}${incident.zone ? ' · ' + incident.zone : ''}`;
 
-  // Render contenido
   const score = incident.smart_score ?? 0;
 
   const detailHtml = `
@@ -115,6 +169,11 @@ function openModal(incident) {
       </div>
     </div>
 
+    <div class="detailBox">
+      <div class="muted small">Origen</div>
+      <div><b>${incident.created_by || 'APP'}</b></div>
+    </div>
+
     ${incident.descripcion ? `
       <div class="detailBox">
         <div class="muted small">Descripción</div>
@@ -127,7 +186,6 @@ function openModal(incident) {
 
   modalBody.innerHTML = detailHtml;
 
-  // Mostrar modal
   modal.classList.remove('hidden');
   modal.setAttribute('aria-hidden', 'false');
 }
@@ -138,12 +196,12 @@ function closeModal() {
   modalBody.innerHTML = '';
 }
 
-modalCloseBackdrop.onclick = closeModal;
-modalCloseBtn.onclick = closeModal;
-modalCloseBtn2.onclick = closeModal;
+if (modalCloseBackdrop) modalCloseBackdrop.onclick = closeModal;
+if (modalCloseBtn) modalCloseBtn.onclick = closeModal;
+if (modalCloseBtn2) modalCloseBtn2.onclick = closeModal;
 
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) closeModal();
 });
 
 /* timeline */
@@ -184,6 +242,8 @@ function renderTimeline(history = []) {
 
 /* ---------- acciones estado ---------- */
 function nextActionButtons(i) {
+  if (!CAN_CHANGE_STATUS) return '';
+
   const st = i.status || 'NUEVA';
 
   if (st === 'NUEVA') {
@@ -205,15 +265,15 @@ async function changeStatus(id, status) {
   });
 }
 
-/* ---------- render cards ---------- */
-function renderCards(data) {
-  const cards = document.getElementById('cards');
+/* ---------- render incident cards ---------- */
+function renderCards(data, route) {
   const empty = document.getElementById('empty');
+  const cards = document.getElementById('cards');
   cards.innerHTML = '';
   empty.textContent = '';
 
   if (!data.length) {
-    empty.textContent = getMode() === 'historial'
+    empty.textContent = route === 'historial'
       ? 'No hay incidentes cerrados aún.'
       : 'No hay alertas por el momento.';
     return;
@@ -230,9 +290,8 @@ function renderCards(data) {
     const gps = `GPS: <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b>`;
     const desc = (i.descripcion || '').trim();
 
-    const actions = (getMode() === 'alertas') ? nextActionButtons(i) : '';
+    const actions = (route === 'alertas') ? nextActionButtons(i) : '';
 
-    // ✅ data-id para abrir modal con click
     c.setAttribute('data-open', '1');
     c.setAttribute('data-id', i.id);
 
@@ -242,6 +301,8 @@ function renderCards(data) {
           <div class="title">${(i.tipo || '').replaceAll('_',' ')}</div>
           <div class="muted small">${fmtDate(i.received_at)}</div>
           <div class="statusPill">${statusLabel(st)}</div>
+          ${i.zone ? `<div class="muted small">Zona: <b>${i.zone}</b></div>` : ''}
+          ${i.created_by ? `<div class="muted small">Creado por: <b>${i.created_by}</b></div>` : ''}
         </div>
         <span class="badge ${sevColor(i.severidad)}">${i.severidad}</span>
       </div>
@@ -257,10 +318,9 @@ function renderCards(data) {
     cards.appendChild(c);
   });
 
-  // ✅ abrir modal al click en tarjeta (pero no cuando clickeas botón)
+  // abrir modal al click en tarjeta (pero no cuando clickeas botón)
   document.querySelectorAll('.cardItem[data-open="1"]').forEach(card => {
     card.onclick = async (ev) => {
-      // si click fue en botón, no abrir modal
       if (ev.target && ev.target.tagName === 'BUTTON') return;
 
       const id = card.getAttribute('data-id');
@@ -273,11 +333,11 @@ function renderCards(data) {
     };
   });
 
-  // ✅ botones de estado
-  if (getMode() === 'alertas') {
+  // botones de estado
+  if (route === 'alertas' && CAN_CHANGE_STATUS) {
     document.querySelectorAll('button[data-id]').forEach(btn => {
       btn.onclick = async (ev) => {
-        ev.stopPropagation(); // evita abrir modal
+        ev.stopPropagation();
         const id = btn.dataset.id;
         const st = btn.dataset.st;
 
@@ -294,30 +354,137 @@ function renderCards(data) {
   }
 }
 
-/* ---------- load ---------- */
+/* ---------- usuarios (ADMIN) ---------- */
+function renderUsersTable(users) {
+  if (!usersTableWrap) return;
+
+  if (!users.length) {
+    usersTableWrap.innerHTML = `<p class="muted">No hay usuarios.</p>`;
+    return;
+  }
+
+  const rows = users.map(u => `
+    <tr>
+      <td>${u.id}</td>
+      <td>${u.username}</td>
+      <td>${u.name || ''}</td>
+      <td>${u.role}</td>
+      <td>${u.zone ?? ''}</td>
+    </tr>
+  `).join('');
+
+  usersTableWrap.innerHTML = `
+    <div style="overflow:auto;">
+      <table class="tbl" style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #eee;">ID</th>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #eee;">Usuario</th>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #eee;">Nombre</th>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #eee;">Rol</th>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #eee;">Zona</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function loadUsers() {
+  if (!IS_ADMIN) {
+    alert('Solo ADMIN puede ver usuarios.');
+    window.location.hash = '#alertas';
+    return;
+  }
+  showOnly('users');
+  document.getElementById('title').textContent = 'Gestión de usuarios';
+
+  try {
+    const users = await API.request('/users');
+    renderUsersTable(users);
+  } catch (e) {
+    if (usersTableWrap) usersTableWrap.innerHTML = `<p class="muted">Error: ${e.message || ''}</p>`;
+  }
+}
+
+/* ---------- reportes (ADMIN) ---------- */
+function setupReports() {
+  if (!btnExportCsv) return;
+
+  btnExportCsv.onclick = () => {
+    if (!IS_ADMIN) {
+      alert('Solo ADMIN puede exportar reportes.');
+      return;
+    }
+
+    // ✅ descarga directa (si implementas /reports/incidents.csv en backend)
+    // Si todavía no existe, te devolverá 404.
+    const a = document.createElement('a');
+    a.href = '/reports/incidents.csv';
+    a.target = '_blank';
+    a.click();
+
+    if (reportsMsg) {
+      reportsMsg.textContent = 'Si no descarga, implementa el endpoint /reports/incidents.csv en backend.';
+    }
+  };
+}
+
+async function loadReports() {
+  if (!IS_ADMIN) {
+    alert('Solo ADMIN puede ver reportes.');
+    window.location.hash = '#alertas';
+    return;
+  }
+  showOnly('reports');
+  document.getElementById('title').textContent = 'Reportes';
+  setupReports();
+}
+
+/* ---------- incidentes ---------- */
+function getIncidentsUrlByRoute(route) {
+  if (route === 'historial') return '/incidents?status=CERRADA';
+  return '/incidents?status=NUEVA,RECIBIDA,EN_ATENCION';
+}
+
 let isLoading = false;
 
 async function load() {
+  const route = getRoute();
+  setActiveNav(route);
+
+  // Rutas admin
+  if (route === 'usuarios') return loadUsers();
+  if (route === 'reportes') return loadReports();
+
+  // Incidentes (alertas / historial)
+  showOnly('incidents');
+
   if (isLoading) return;
   isLoading = true;
 
-  renderTabsUI();
+  // Título
+  document.getElementById('title').textContent =
+    route === 'historial' ? 'Historial (incidentes cerrados)' : 'Alertas registradas';
 
   try {
-    const url = getIncidentsUrlByMode();
+    const url = getIncidentsUrlByRoute(route);
     let data = await API.request(url);
 
-    if (getMode() === 'historial') {
-      data.sort((a,b) => new Date(b.received_at) - new Date(a.received_at));
+    if (route === 'historial') {
+      data.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
     } else {
       const rank = { grave: 3, medio: 2, leve: 1 };
-      data.sort((a,b) =>
-        (rank[b.severidad]||0) - (rank[a.severidad]||0) ||
-        (b.smart_score||0) - (a.smart_score||0)
+      data.sort((a, b) =>
+        (rank[b.severidad] || 0) - (rank[a.severidad] || 0) ||
+        (b.smart_score || 0) - (a.smart_score || 0)
       );
     }
 
-    renderCards(data);
+    renderCards(data, route);
 
   } catch (e) {
     const empty = document.getElementById('empty');
@@ -336,4 +503,8 @@ window.addEventListener('hashchange', () => load());
 
 // Inicial
 load();
-setInterval(load, 4000);
+setInterval(() => {
+  const route = getRoute();
+  // refresco automático solo para alertas/historial
+  if (route === 'alertas' || route === 'historial') load();
+}, 4000);
