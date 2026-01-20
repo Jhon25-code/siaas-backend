@@ -23,7 +23,7 @@ document.getElementById('who').textContent =
   `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;
 
 /**
- * ✅ Control de acceso por rol
+ *  Control de acceso por rol
  * Este dashboard es para WEB (TOPICO/SUPERVISOR/ADMIN).
  */
 const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
@@ -33,10 +33,10 @@ if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
   window.location.href = '/login.html';
 }
 
-// ✅ Permiso para cambiar estado
+//  Permiso para cambiar estado
 const CAN_CHANGE_STATUS = ['TOPICO', 'SUPERVISOR', 'ADMIN'].includes(SESSION.role);
 
-// ✅ Admin section (usuarios/reportes)
+//  Admin section (usuarios/reportes)
 const IS_ADMIN = SESSION.role === 'ADMIN';
 const adminSection = document.getElementById('adminSection');
 if (adminSection) adminSection.style.display = IS_ADMIN ? '' : 'none';
@@ -420,7 +420,7 @@ function setupReports() {
       return;
     }
 
-    // ✅ descarga directa (si implementas /reports/incidents.csv en backend)
+    //  descarga directa (si implementas /reports/incidents.csv en backend)
     // Si todavía no existe, te devolverá 404.
     const a = document.createElement('a');
     a.href = '/reports/incidents.csv';

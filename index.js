@@ -216,14 +216,21 @@ function calculateSmartScore({ tipo, severidad, latitude, longitude }) {
  * Endpoint de sincronización (Flutter)
  * (No requiere login porque viene desde el móvil offline)
  *
- * ✅ Mejoras:
+ * Mejoras:
  * - client_id (id del móvil) para evitar duplicados
  * - zone y created_by para filtrar por rol/zona (TOPICO/SUPERVISOR)
+ * - validación de tipo
  */
 app.post('/sync', (req, res) => {
   const nowIso = new Date().toISOString();
 
-  // ✅ Anti-duplicados si el móvil reintenta
+  // Validación mínima
+  const tipo = (req.body.tipo || '').trim();
+  if (!tipo) {
+    return res.status(400).json({ success: false, message: 'El campo "tipo" es obligatorio' });
+  }
+
+  //  Anti-duplicados si el móvil reintenta
   const client_id = req.body.client_id || null;
   if (client_id) {
     const existing = incidents.find(i => i.client_id === client_id);
@@ -240,14 +247,14 @@ app.post('/sync', (req, res) => {
     id: generateId(),
     client_id,
 
-    tipo: req.body.tipo,
+    tipo,
     descripcion: req.body.descripcion || '',
     severidad: req.body.severidad || 'leve',
     latitude: req.body.latitude ?? null,
     longitude: req.body.longitude ?? null,
     timestamp: req.body.timestamp ?? null,
 
-    // ✅ Control por roles
+    // Control por roles
     zone: req.body.zone || 'ZONA_1',
     created_by: req.body.created_by || 'APP',
 
@@ -267,7 +274,7 @@ app.post('/sync', (req, res) => {
 
   incidents.push(incident);
 
-  console.log('📥 Incidente recibido:', incident);
+  console.log(' Incidente recibido:', incident);
 
   res.status(200).json({
     success: true,
@@ -277,8 +284,7 @@ app.post('/sync', (req, res) => {
 });
 
 /**
- * (Opcional) Consultar estado por client_id (móvil)
- * Útil para confirmar recepción (HU 12)
+ * Consultar estado por client_id (móvil) - HU 12
  */
 app.get('/sync/status/:clientId', (req, res) => {
   const { clientId } = req.params;
@@ -289,21 +295,16 @@ app.get('/sync/status/:clientId', (req, res) => {
 
 /**
  * API para dashboard (PROTEGIDO)
- * ✅ Roles:
+ *  Roles:
  * - ADMIN: ve todo
  * - TOPICO/SUPERVISOR: ve solo su zona
- *
- * ✅ Soporta filtros:
- *  - /incidents?status=NUEVA
- *  - /incidents?status=CERRADA
- *  - /incidents?status=NUEVA,RECIBIDA
  */
 app.get('/incidents', authRequired, requireRole(['TOPICO', 'ADMIN', 'SUPERVISOR']), (req, res) => {
   const { status } = req.query;
 
   let data = [...incidents];
 
-  // ✅ FILTRO POR ROL / ZONA
+  //  FILTRO POR ROL / ZONA
   if (req.user.role === 'TOPICO' || req.user.role === 'SUPERVISOR') {
     if (req.user.zone) {
       data = data.filter(i => i.zone === req.user.zone);
@@ -333,14 +334,14 @@ app.get('/incidents', authRequired, requireRole(['TOPICO', 'ADMIN', 'SUPERVISOR'
 });
 
 /**
- * (Opcional pero útil) Ver detalle de 1 incidente
+ * Ver detalle de 1 incidente
  */
 app.get('/incidents/:id', authRequired, requireRole(['TOPICO', 'ADMIN', 'SUPERVISOR']), (req, res) => {
   const { id } = req.params;
   const incident = incidents.find(i => i.id === id);
   if (!incident) return res.status(404).json({ message: 'Incidente no encontrado' });
 
-  // ✅ extra: si es TOPICO/SUPERVISOR, validar zona
+  //  si es TOPICO/SUPERVISOR, validar zona
   if ((req.user.role === 'TOPICO' || req.user.role === 'SUPERVISOR') && req.user.zone) {
     if (incident.zone !== req.user.zone) return res.status(403).json({ message: 'No autorizado (zona)' });
   }
@@ -350,13 +351,12 @@ app.get('/incidents/:id', authRequired, requireRole(['TOPICO', 'ADMIN', 'SUPERVI
 
 /**
  * Cambiar estado (panel web)
- * ✅ roles que pueden cambiar estado: TOPICO / SUPERVISOR / ADMIN
+ *  roles: TOPICO / SUPERVISOR / ADMIN
  */
 app.patch('/incidents/:id/status', authRequired, requireRole(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   const { id } = req.params;
   const { status } = req.body || {};
 
-  // Estados oficiales
   const allowed = ['NUEVA', 'RECIBIDA', 'EN_ATENCION', 'CERRADA'];
   if (!allowed.includes(status)) {
     return res.status(400).json({ message: 'Estado inválido' });
@@ -365,7 +365,7 @@ app.patch('/incidents/:id/status', authRequired, requireRole(['TOPICO', 'SUPERVI
   const incident = incidents.find(i => i.id === id);
   if (!incident) return res.status(404).json({ message: 'Incidente no encontrado' });
 
-  // ✅ extra: si es TOPICO/SUPERVISOR, validar zona
+  //  si es TOPICO/SUPERVISOR, validar zona
   if ((req.user.role === 'TOPICO' || req.user.role === 'SUPERVISOR') && req.user.zone) {
     if (incident.zone !== req.user.zone) return res.status(403).json({ message: 'No autorizado (zona)' });
   }
@@ -383,10 +383,9 @@ app.patch('/incidents/:id/status', authRequired, requireRole(['TOPICO', 'SUPERVI
 
 /**
  * KPIs rápidos para tu demo (SLA y conteos)
- * - /kpi
  */
 app.get('/kpi', authRequired, requireRole(['TOPICO', 'ADMIN', 'SUPERVISOR']), (req, res) => {
-  // ✅ si no es ADMIN, filtra por zona
+  //  si no es ADMIN, filtra por zona
   let data = [...incidents];
   if ((req.user.role === 'TOPICO' || req.user.role === 'SUPERVISOR') && req.user.zone) {
     data = data.filter(i => i.zone === req.user.zone);
@@ -409,13 +408,53 @@ app.get('/kpi', authRequired, requireRole(['TOPICO', 'ADMIN', 'SUPERVISOR']), (r
     })
     .filter(x => x != null);
 
-  const avgSla = slaMins.length ? Math.round(slaMins.reduce((a, b) => a + b, 0) / slaMins.length) : 0;
+  const avgSla = slaMins.length
+    ? Math.round(slaMins.reduce((a, b) => a + b, 0) / slaMins.length)
+    : 0;
 
   res.json({
     total: data.length,
     byStatus,
     avgSlaMinutes: avgSla,
   });
+});
+
+/**
+ * REPORTES (CSV) - SOLO ADMIN
+ * Descarga para Excel: /reports/incidents.csv
+ */
+app.get('/reports/incidents.csv', authRequired, requireRole(['ADMIN']), (req, res) => {
+  const header = ['id','tipo','severidad','status','smart_score','received_at','descripcion','zone','created_by','latitude','longitude','client_id'];
+  const rows = incidents.map(i => [
+    i.id,
+    i.tipo,
+    i.severidad,
+    i.status,
+    i.smart_score,
+    i.received_at,
+    (i.descripcion || '').replace(/\n/g, ' ').replace(/"/g, '""'),
+    i.zone || '',
+    i.created_by || '',
+    i.latitude ?? '',
+    i.longitude ?? '',
+    i.client_id || ''
+  ]);
+
+  const csv = [
+    header.join(','),
+    ...rows.map(r => r.map(v => `"${String(v ?? '')}"`).join(',')),
+  ].join('\n');
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="incidents.csv"');
+  res.send(csv);
+});
+
+/**
+ * Health check (opcional)
+ */
+app.get('/health', (req, res) => {
+  res.json({ ok: true, service: 'SIAAS', time: new Date().toISOString() });
 });
 
 /**

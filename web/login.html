@@ -3,48 +3,67 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>SIAAS | Login</title>
+    <title>SIAAS | Acceso</title>
 
-    <!-- Estilos -->
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 
-<body class="bg">
+<body class="loginPage">
 
-<div class="card">
-    <h1>SIAAS</h1>
-    <p class="muted">Panel Web</p>
+<!-- Lado izquierdo (Hero / Foto) -->
+<section class="loginHero" aria-hidden="true"></section>
 
-    <form id="loginForm" autocomplete="off">
+<!-- Lado derecho (Login centrado) -->
+<main class="loginWrap">
+    <section class="loginCard" aria-label="Acceso al sistema">
 
-        <label for="username">Usuario</label>
-        <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="topico / admin"
-                required
-        />
+        <header class="brand">
+            <img class="brandLogo" src="/images/logo_siaas.png" alt="Logo SIAAS" />
+            <div class="brandText">
+                <h1>SIAAS</h1>
+                <p>Sistema inteligente de alertas agrícolas</p>
+            </div>
+        </header>
 
-        <label for="password">Contraseña</label>
-        <input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="123456"
-                required
-        />
+        <div class="divider"></div>
 
-        <button type="submit">Ingresar</button>
+        <form id="loginForm" class="form" autocomplete="off" autocapitalize="none" spellcheck="false">
+            <label for="username">Usuario</label>
+            <input
+                    id="username"
+                    name="username"
+                    type="text"
+                    placeholder="topico / admin / supervisor"
+                    required
+                    autofocus
+            />
 
-        <!-- Mensaje de error -->
-        <p id="msg" class="error"></p>
+            <label for="password">Contraseña</label>
+            <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    placeholder="123456"
+                    required
+            />
 
-    </form>
-</div>
+            <button class="btnPrimary" type="submit">Ingresar</button>
 
-<!-- Scripts (al final SIEMPRE) -->
+            <!-- Mensaje de error -->
+            <p id="msg" class="error"></p>
+        </form>
+
+        <!-- Footer fuera del form (más limpio y centrado) -->
+        <footer class="loginFooter">
+            © <span id="year"></span> Agroindustrial · SIAAS
+        </footer>
+
+    </section>
+</main>
+
+<script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+</script>
 <script src="/js/auth.js"></script>
-
 </body>
 </html>

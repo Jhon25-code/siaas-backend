@@ -7,32 +7,49 @@
     <link rel="stylesheet" href="/css/styles.css" />
 </head>
 <body>
+
 <div class="layout">
+    <!-- SIDEBAR -->
     <aside class="sidebar">
         <div class="logo"><b>SIAAS</b></div>
         <div class="who" id="who"></div>
 
         <nav>
-            <!-- Incidentes -->
             <div class="muted small" style="margin:10px 0 6px;">INCIDENTES</div>
-            <a id="tab-alertas" class="active" href="#alertas">📌 Alertas</a>
-            <a id="tab-historial" href="#historial">🕘 Historial</a>
+            <a id="tab-alertas" class="active" href="#alertas">Alertas</a>
+            <a id="tab-historial" href="#historial">Historial</a>
 
-            <!-- Admin tools -->
             <div id="adminSection" style="display:none;">
                 <div class="muted small" style="margin:14px 0 6px;">ADMIN</div>
-                <a id="nav-users" href="#usuarios">👥 Usuarios</a>
-                <a id="nav-reports" href="#reportes">📄 Reportes</a>
+                <a id="nav-users" href="#usuarios">Usuarios</a>
+                <a id="nav-reports" href="#reportes">Reportes</a>
             </div>
         </nav>
 
         <button class="logout" id="logout">Cerrar sesión</button>
     </aside>
 
+    <!-- MAIN -->
     <main class="main">
-        <h1 id="title">Panel</h1>
 
-        <!-- Leyenda IS -->
+        <!-- HEADER DE SECCIÓN (NUEVO) -->
+        <div class="sectionHeader">
+            <h1 id="title">Alertas registradas</h1>
+
+            <div class="sectionActions">
+                <button class="btn">Vista tabla</button>
+                <button class="btn primary" onclick="location.reload()">Actualizar</button>
+            </div>
+        </div>
+
+        <!-- MAPA DE APROXIMACIÓN (NUEVO - VISUAL) -->
+        <div class="mapWrapper">
+            <div class="mapBox">
+                <span>🗺️ Mapa de aproximación de incidentes</span>
+            </div>
+        </div>
+
+        <!-- LEYENDA IS (SE MANTIENE) -->
         <div class="legend" id="legendIS">
             <span><b>IS</b> (Índice de Severidad):</span>
             <span class="pill green">0–30 Leve</span>
@@ -40,42 +57,43 @@
             <span class="pill red">≥51 Grave</span>
         </div>
 
-        <!-- Contenedor principal -->
+        <!-- ALERTAS / HISTORIAL (SE MANTIENE) -->
         <div id="cards" class="cards"></div>
         <p class="muted" id="empty"></p>
 
-        <!-- Sección usuarios (solo ADMIN) -->
+        <!-- USUARIOS (ADMIN) -->
         <div id="usersView" style="display:none; margin-top:18px;">
-            <h2 style="margin:0 0 10px;">Gestión de usuarios</h2>
+            <h2>Gestión de usuarios</h2>
             <div class="muted small" style="margin-bottom:10px;">
-                Solo visible para ADMIN. Aquí se listan usuarios del sistema.
+                Solo visible para ADMIN.
             </div>
             <div id="usersTableWrap"></div>
         </div>
 
-        <!-- Sección reportes (solo ADMIN) -->
+        <!-- REPORTES (ADMIN) -->
         <div id="reportsView" style="display:none; margin-top:18px;">
-            <h2 style="margin:0 0 10px;">Reportes</h2>
+            <h2>Reportes</h2>
             <div class="muted small" style="margin-bottom:10px;">
-                Exporta incidentes (CSV) para abrir en Excel.
+                Exporta incidentes (CSV).
             </div>
             <button class="btn primary" id="btnExportCsv">Descargar CSV</button>
             <div class="muted small" style="margin-top:8px;" id="reportsMsg"></div>
         </div>
+
     </main>
 </div>
 
-<!-- MODAL DETALLE -->
+<!-- MODAL (SIN CAMBIOS) -->
 <div id="modal" class="modal hidden" aria-hidden="true">
     <div class="modalBackdrop" id="modalCloseBackdrop"></div>
 
-    <div class="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modalCard" role="dialog" aria-modal="true">
         <div class="modalHeader">
             <div>
                 <div id="modalTitle" class="modalTitle">Detalle del incidente</div>
                 <div id="modalSub" class="muted small"></div>
             </div>
-            <button id="modalCloseBtn" class="iconBtn" aria-label="Cerrar">✕</button>
+            <button id="modalCloseBtn" class="iconBtn">✕</button>
         </div>
 
         <div id="modalBody" class="modalBody"></div>

@@ -4,7 +4,8 @@ body { margin:0; font-family: Arial, sans-serif; background:#f4f6f8; }
 .small { font-size:12px; }
 .error { color:#c62828; margin-top:10px; }
 
-/* ====== LOGIN (actual) ====== */
+/* ====== LOGIN (ANTIGUO) ====== */
+/* (Lo dejo por si luego quieres volver a usarlo, pero tu login actual usa loginPage) */
 .bg{
   display:flex;
   align-items:center;
@@ -97,7 +98,7 @@ button:active{ transform:scale(.99); }
 .title { font-weight:bold; font-size:16px; text-transform:capitalize; }
 .badge { padding:4px 10px; border-radius:999px; font-size:12px; color:#fff; font-weight:bold; }
 
-/*  Badge por severidad (para que se vea igual que tus pills) */
+/*  Badge por severidad */
 .badge.green{ background:#2e7d32; }
 .badge.orange{ background:#ef6c00; }
 .badge.red{ background:#c62828; }
@@ -273,16 +274,15 @@ button:active{ transform:scale(.99); }
 }
 
 /* =====================================================
-   LOGIN PRO (SIAAS) - SOLO SE ACTIVA SI USAS login.html PRO
-   Usa clases: loginPage, loginHero, loginWrap, loginCard, etc.
+   LOGIN PRO (SIAAS) - CENTRADO Y MÁS PRESENTABLE
    ===================================================== */
 
 :root{
-  --siaas-card: rgba(255,255,255,.92);
+  --siaas-card: rgba(255,255,255,.96);
   --siaas-text: #0f172a;
   --siaas-muted: #475569;
-  --siaas-line: rgba(15,23,42,.10);
-  --siaas-primary: #1f6f3b;  /* mismo verde del sidebar */
+  --siaas-line: rgba(15,23,42,.12);
+  --siaas-primary: #1f6f3b;
   --siaas-primary2: #16552c;
   --siaas-danger: #c62828;
 }
@@ -293,63 +293,69 @@ body.loginPage{
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   color: var(--siaas-text);
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
+  grid-template-columns: 1.35fr 1fr; /* izquierda más ancha */
   background: #0b1220;
 }
 
+/* HERO (IZQUIERDA) */
 .loginHero{
   min-height: 100vh;
+  position: relative;
   background:
-    linear-gradient(90deg, rgba(11,18,32,.75), rgba(11,18,32,.15)),
-    url("/images/bg_agroindustrial.jpg");
-  background-size: cover;
-  background-position: center;
+    url("/images/bg_agroindustrial.jpg") center / cover no-repeat;
 }
 
+.loginHero::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(90deg, rgba(2,6,23,.62), rgba(2,6,23,.12));
+}
+
+/* WRAP (DERECHA) */
 .loginWrap{
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  background:
-    radial-gradient(1200px 600px at 30% 20%, rgba(34,197,94,.16), transparent 60%),
-    radial-gradient(900px 500px at 80% 60%, rgba(59,130,246,.12), transparent 55%),
-    #f8fafc;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 32px;
+  background: #f8fafc;
 }
 
+/* CARD */
 .loginCard{
-  width: min(460px, 100%);
+  width: min(520px, 100%);
   background: var(--siaas-card);
-  backdrop-filter: blur(10px);
   border: 1px solid var(--siaas-line);
-  border-radius: 18px;
-  padding: 26px 24px;
-  box-shadow: 0 20px 60px rgba(2,6,23,.18);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 24px 70px rgba(2,6,23,.16);
 }
 
+/* CABECERA */
 .brand{
-  display: flex;
-  align-items: center;
-  gap: 14px;
+  display:flex;
+  align-items:center;
+  gap: 12px;
 }
 
 .brandLogo{
-  width: 54px;
-  height: 54px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
-  border-radius: 12px;
-  background: white;
+  border-radius: 14px;
+  background: #fff;
   border: 1px solid var(--siaas-line);
-  padding: 6px;
+  padding: 8px;
 }
 
 .brandText h1{
   margin: 0;
-  font-size: 26px;
-  letter-spacing: .3px;
+  font-size: 28px;
+  letter-spacing: .2px;
 }
 
 .brandText p{
-  margin: 2px 0 0 0;
+  margin: 4px 0 0 0;
   color: var(--siaas-muted);
   font-size: 13px;
 }
@@ -360,8 +366,9 @@ body.loginPage{
   margin: 18px 0;
 }
 
+/* FORM */
 .form label{
-  display: block;
+  display:block;
   font-weight: 700;
   font-size: 13px;
   margin: 10px 0 6px;
@@ -370,28 +377,30 @@ body.loginPage{
 
 .form input{
   width: 100%;
-  padding: 12px 12px;
-  border-radius: 12px;
+  padding: 13px 14px;
+  border-radius: 13px;
   border: 1px solid rgba(15,23,42,.15);
   outline: none;
-  background: rgba(255,255,255,.9);
+  background: rgba(255,255,255,.95);
   transition: .15s ease;
 }
 
 .form input:focus{
-  border-color: rgba(31,111,59,.65);
+  border-color: rgba(31,111,59,.70);
   box-shadow: 0 0 0 4px rgba(31,111,59,.16);
 }
 
+/* BOTON */
 .btnPrimary{
   width: 100%;
   margin-top: 14px;
-  padding: 12px 14px;
+  padding: 13px 14px;
   border: 0;
-  border-radius: 12px;
+  border-radius: 13px;
   cursor: pointer;
   font-weight: 800;
-  color: white;
+  font-size: 14px;
+  color: #fff;
   background: linear-gradient(180deg, var(--siaas-primary), var(--siaas-primary2));
   box-shadow: 0 10px 25px rgba(31,111,59,.22);
   transition: transform .08s ease, filter .15s ease;
@@ -400,6 +409,7 @@ body.loginPage{
 .btnPrimary:hover{ filter: brightness(1.03); }
 .btnPrimary:active{ transform: translateY(1px); }
 
+/* ERROR */
 .loginCard .error{
   margin: 10px 0 0 0;
   color: var(--siaas-danger);
@@ -407,16 +417,92 @@ body.loginPage{
   min-height: 18px;
 }
 
-.hint{
-  margin: 14px 0 0 0;
+/* FOOTER */
+.loginFooter, .hint{
+  margin-top: 14px;
+  text-align:center;
+  color:#64748b;
   font-size: 12px;
-  color: var(--siaas-muted);
-  text-align: center;
 }
 
-/* Responsive: en móvil se oculta el hero */
+/* Responsive */
 @media (max-width: 900px){
   body.loginPage{ grid-template-columns: 1fr; }
-  .loginHero{ display: none; }
+  .loginHero{ display:none; }
   .loginWrap{ min-height: 100vh; }
+}
+
+/* =====================================================
+   DASHBOARD – HEADER ALERTAS (PASO 3)
+   ===================================================== */
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.sectionHeader h1,
+.sectionHeader h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.sectionActions {
+  display: flex;
+  gap: 8px;
+}
+
+.sectionActions .btn {
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.sectionActions .btn.primary {
+  background: #2563eb;
+  color: #fff;
+}
+
+/* =====================================================
+   MAPA DE APROXIMACIÓN (PLACEHOLDER)
+   ===================================================== */
+
+.mapWrapper {
+  margin-top: 16px;
+  margin-bottom: 18px;
+}
+
+.mapBox {
+  width: 100%;
+  height: 320px;
+  background: #f3f4f6;
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+/* Texto interno mapa */
+.mapBox span {
+  opacity: 0.85;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .sectionHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

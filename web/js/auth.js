@@ -6,7 +6,7 @@ form.addEventListener('submit', async (e) => {
   msg.textContent = '';
 
   const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value; // ✅ no trim
+  const password = document.getElementById('password').value; //  no trim
 
   if (!username || !password) {
     msg.textContent = 'Ingrese usuario y contraseña';
@@ -27,14 +27,14 @@ form.addEventListener('submit', async (e) => {
       return;
     }
 
-    // ✅ Guardar sesión completa (para roles)
+    //  Guardar sesión completa (para roles)
     localStorage.setItem('token', data.token);
     localStorage.setItem('role', data.role || '');
     localStorage.setItem('name', data.name || '');
     localStorage.setItem('zone', data.zone ?? '');
-    localStorage.setItem('username', data.username || username); // ✅ NUEVO
+    localStorage.setItem('username', data.username || username); //  NUEVO
 
-    // ✅ Redirigir
+    //  Redirigir
     window.location.href = '/dashboard.html';
 
   } catch (err) {
