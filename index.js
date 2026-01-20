@@ -21,13 +21,17 @@ app.use(cors());
 app.use(express.json());
 
 /**
- * 🚨 IMPORTANTE
- * Evitar cache de HTML (Render / navegador)
+ * 🚨 IMPORTANTE (FIX DEFINITIVO)
+ * Desactivar cache SOLO para HTML
+ * (Render + navegador)
  */
 app.use((req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
+  if (req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+  }
   next();
 });
 
@@ -38,7 +42,7 @@ app.use((req, res, next) => {
  */
 const WEB_DIR = path.join(__dirname, 'web');
 
-// Servir CSS, JS, imágenes
+// Servir CSS, JS, imágenes (cache normal)
 app.use(express.static(WEB_DIR));
 
 /**
@@ -134,9 +138,9 @@ app.post('/auth/login', (req, res) => {
 });
 
 // ==================
-// (TODO TU BACKEND SIGUE IGUAL)
+// ⚠️ TODO TU BACKEND SIGUE IGUAL
 // USERS, INCIDENTS, SYNC, KPI, REPORTS
-// 👉 NO TOQUÉ NADA DE ESA PARTE
+// (NO se toca nada)
 // ==================
 
 /**
