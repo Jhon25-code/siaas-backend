@@ -9,9 +9,7 @@ document.getElementById('logout').onclick = () => {
   window.location.href = '/login.html';
 };
 
-// ======================
-// DATOS DE SESIÓN
-// ======================
+// Datos de sesión
 const SESSION = {
   token: localStorage.getItem('token') || '',
   role: (localStorage.getItem('role') || '').toUpperCase(),
@@ -20,9 +18,13 @@ const SESSION = {
   username: localStorage.getItem('username') || '',
 };
 
+// Mostrar "quién"
 document.getElementById('who').textContent =
   `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;
 
+/**
+ * Control de acceso por rol
+ */
 const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
 if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
   alert('No autorizado para acceder al panel web.');
@@ -36,9 +38,7 @@ const IS_ADMIN = SESSION.role === 'ADMIN';
 const adminSection = document.getElementById('adminSection');
 if (adminSection) adminSection.style.display = IS_ADMIN ? '' : 'none';
 
-// ======================
-// ELEMENTOS
-// ======================
+// Vistas
 const usersView = document.getElementById('usersView');
 const reportsView = document.getElementById('reportsView');
 const cardsEl = document.getElementById('cards');
@@ -48,9 +48,7 @@ const usersTableWrap = document.getElementById('usersTableWrap');
 const btnExportCsv = document.getElementById('btnExportCsv');
 const reportsMsg = document.getElementById('reportsMsg');
 
-// ======================
-// HELPERS
-// ======================
+/* ---------- helpers ---------- */
 function sevColor(sev) {
   if (sev === 'grave') return 'red';
   if (sev === 'medio') return 'orange';
@@ -80,49 +78,7 @@ function fmtDate(iso) {
   try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }
 }
 
-function diffMin(aIso, bIso) {
-  const a = new Date(aIso).getTime();
-  const b = new Date(bIso).getTime();
-  if (isNaN(a) || isNaN(b)) return null;
-  return Math.round((b - a) / 60000);
-}
-
-// ======================
-// ROUTER
-// ======================
-function getRoute() {
-  const h = (window.location.hash || '#alertas').toLowerCase();
-  if (h === '#usuarios') return 'usuarios';
-  if (h === '#reportes') return 'reportes';
-  if (h === '#historial') return 'historial';
-  return 'alertas';
-}
-
-function setActiveNav(route) {
-  ['tab-alertas','tab-historial','nav-users','nav-reports']
-    .map(id => document.getElementById(id))
-    .filter(Boolean)
-    .forEach(el => el.classList.remove('active'));
-
-  if (route === 'historial') document.getElementById('tab-historial')?.classList.add('active');
-  else if (route === 'usuarios') document.getElementById('nav-users')?.classList.add('active');
-  else if (route === 'reportes') document.getElementById('nav-reports')?.classList.add('active');
-  else document.getElementById('tab-alertas')?.classList.add('active');
-}
-
-function showOnly(view) {
-  if (usersView) usersView.style.display = view === 'users' ? '' : 'none';
-  if (reportsView) reportsView.style.display = view === 'reports' ? '' : 'none';
-
-  const showIncidents = view === 'incidents';
-  if (cardsEl) cardsEl.style.display = showIncidents ? '' : 'none';
-  if (emptyEl) emptyEl.style.display = showIncidents ? '' : 'none';
-  if (legendIS) legendIS.style.display = showIncidents ? '' : 'none';
-}
-
-// ======================
-// MODAL
-// ======================
+/* ---------- modal ---------- */
 const modal = document.getElementById('modal');
 const modalBody = document.getElementById('modalBody');
 const modalTitle = document.getElementById('modalTitle');
@@ -130,49 +86,33 @@ const modalSub = document.getElementById('modalSub');
 
 function openModal(incident) {
   modalTitle.textContent = `Detalle: ${(incident.tipo || '').replaceAll('_',' ')}`;
-  modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}`;
+  modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}${incident.zone ? ' · ' + incident.zone : ''}`;
 
-  const label = scoreLabel(incident.smart_score ?? 0);
+  const score = incident.smart_score ?? 0;
 
   modalBody.innerHTML = `
     <div class="detailGrid">
       <div class="detailBox">
         <div class="muted small">Estado</div>
-        <div><b>${statusLabel(incident.status)}</b></div>
+        <div><b>${statusLabel(incident.status || 'NUEVA')}</b></div>
       </div>
+
       <div class="detailBox">
         <div class="muted small">Severidad</div>
-        <div><b>${label}</b></div>
+        <div><b>${scoreLabel(score)}</b></div>
       </div>
+
       <div class="detailBox">
         <div class="muted small">GPS</div>
         <div><b>${fmtCoord(incident.latitude)}</b>, <b>${fmtCoord(incident.longitude)}</b></div>
       </div>
     </div>
-
-    ${incident.descripcion ? `
-      <div class="detailBox">
-        <div class="muted small">Descripción</div>
-        <div><b>${incident.descripcion}</b></div>
-      </div>
-    ` : ''}
   `;
 
   modal.classList.remove('hidden');
 }
 
-document.getElementById('modalCloseBackdrop')?.onclick = closeModal;
-document.getElementById('modalCloseBtn')?.onclick = closeModal;
-document.getElementById('modalCloseBtn2')?.onclick = closeModal;
-
-function closeModal() {
-  modal.classList.add('hidden');
-  modalBody.innerHTML = '';
-}
-
-// ======================
-// RENDER CARDS
-// ======================
+/* ---------- render incident cards ---------- */
 function renderCards(data, route) {
   cardsEl.innerHTML = '';
   emptyEl.textContent = '';
@@ -185,7 +125,8 @@ function renderCards(data, route) {
   }
 
   data.forEach(i => {
-    const label = scoreLabel(i.smart_score ?? 0);
+    const score = i.smart_score ?? 0;
+    const label = scoreLabel(score);
 
     const c = document.createElement('div');
     c.className = 'cardItem';
@@ -198,12 +139,11 @@ function renderCards(data, route) {
           <div class="muted small">${fmtDate(i.received_at)}</div>
           <div class="statusPill">${statusLabel(i.status)}</div>
         </div>
-        <span class="badge ${sevColor(i.severidad)}">${label}</span>
+        <span class="badge ${sevColor(label.toLowerCase())}">${label}</span>
       </div>
 
       <div class="muted small">Severidad: <b>${label}</b></div>
-      ${i.descripcion ? `<div class="muted small">${i.descripcion}</div>` : ''}
-      <div class="muted small">Click en la tarjeta para ver detalle</div>
+      <div class="muted small">GPS: <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b></div>
     `;
 
     c.onclick = async () => {
@@ -215,25 +155,10 @@ function renderCards(data, route) {
   });
 }
 
-// ======================
-// LOAD
-// ======================
+/* ---------- carga ---------- */
 async function load() {
-  const route = getRoute();
-  setActiveNav(route);
-  showOnly('incidents');
-
-  document.getElementById('title').textContent =
-    route === 'historial' ? 'Historial (incidentes cerrados)' : 'Alertas registradas';
-
-  const url = route === 'historial'
-    ? '/incidents?status=CERRADA'
-    : '/incidents?status=NUEVA,RECIBIDA,EN_ATENCION';
-
-  const data = await API.request(url);
-  renderCards(data, route);
+  const data = await API.request('/incidents');
+  renderCards(data, 'alertas');
 }
 
-window.addEventListener('hashchange', load);
 load();
-setInterval(load, 4000);
