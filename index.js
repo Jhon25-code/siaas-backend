@@ -23,7 +23,6 @@ app.use(express.json());
 /**
  * 🚨 IMPORTANTE (FIX DEFINITIVO)
  * Desactivar cache SOLO para HTML
- * (Render + navegador)
  */
 app.use((req, res, next) => {
   if (req.path.endsWith('.html')) {
@@ -42,12 +41,9 @@ app.use((req, res, next) => {
  */
 const WEB_DIR = path.join(__dirname, 'web');
 
-// Servir CSS, JS, imágenes (cache normal)
+// Servir CSS, JS, imágenes
 app.use(express.static(WEB_DIR));
 
-/**
- * Forzar carga correcta de páginas HTML
- */
 app.get('/login.html', (req, res) => {
   res.sendFile(path.join(WEB_DIR, 'login.html'));
 });
@@ -56,9 +52,6 @@ app.get('/dashboard.html', (req, res) => {
   res.sendFile(path.join(WEB_DIR, 'dashboard.html'));
 });
 
-/**
- * Raíz → login
- */
 app.get('/', (req, res) => {
   res.redirect('/login.html');
 });
@@ -67,6 +60,10 @@ app.get('/', (req, res) => {
 // MEMORIA TEMPORAL
 // ==================
 const incidents = [];
+
+function generateId() {
+  return String(Date.now()) + Math.random().toString(16).slice(2);
+}
 
 /**
  * Roles oficiales
@@ -87,13 +84,6 @@ const users = [
 // ==================
 // UTILIDADES
 // ==================
-function generateId() {
-  return String(Date.now()) + Math.random().toString(16).slice(2);
-}
-
-/**
- * Auth middleware
- */
 function authRequired(req, res, next) {
   const h = req.headers.authorization || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : null;
@@ -137,21 +127,79 @@ app.post('/auth/login', (req, res) => {
   res.json({ token, role: user.role, name: user.name, zone: user.zone, username: user.username });
 });
 
-// ==================
-// ⚠️ TODO TU BACKEND SIGUE IGUAL
-// USERS, INCIDENTS, SYNC, KPI, REPORTS
-// (NO se toca nada)
-// ==================
+
+// ============================
+// 🚨 API COMPLETA DE INCIDENTES
+// ============================
 
 /**
- * Health check
+ * Crear incidente
  */
+app.post('/incidents', authRequired, (req, res) => {
+  const { tipo, descripcion, latitude, longitude, received_at } = req.body;
+
+  if (!tipo) return res.status(400).json({ message: 'Tipo es requerido' });
+
+  const incident = {
+    id: generateId(),
+    tipo,
+    descripcion: descripcion || '',
+    latitude: latitude || null,
+    longitude: longitude || null,
+    received_at: received_at || new Date().toISOString(),
+    status: 'NUEVA',
+    zone: req.user.zone || null,
+    smart_score: 0
+  };
+
+  incidents.push(incident);
+  res.json({ ok: true, incident });
+});
+
+/**
+ * Listar incidentes
+ */
+app.get('/incidents', authRequired, (req, res) => {
+  res.json(incidents);
+});
+
+/**
+ * Obtener incidente por ID
+ */
+app.get('/incidents/:id', authRequired, (req, res) => {
+  const incident = incidents.find(i => i.id === req.params.id);
+  if (!incident) return res.status(404).json({ message: 'No encontrado' });
+  res.json(incident);
+});
+
+/**
+ * Cambiar estado de incidente
+ */
+app.put('/incidents/:id/status', authRequired, (req, res) => {
+  const { status } = req.body;
+  const allowed = ['NUEVA', 'RECIBIDA', 'EN_ATENCION', 'CERRADA'];
+
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ message: 'Estado inválido' });
+  }
+
+  const incident = incidents.find(i => i.id === req.params.id);
+  if (!incident) return res.status(404).json({ message: 'No encontrado' });
+
+  incident.status = status;
+  res.json({ ok: true, incident });
+});
+
+
+// ==================
+// HEALTH CHECK
+// ==================
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'SIAAS', time: new Date().toISOString() });
 });
 
 // ==================
-// START
+// START SERVER
 // ==================
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor SIAAS activo:
