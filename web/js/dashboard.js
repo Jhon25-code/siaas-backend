@@ -45,6 +45,7 @@ function sevColor(label) {
   return 'green';
 }
 
+// 👉 CLAVE: solo texto, SIN números
 function scoreLabel(score) {
   if (score >= 51) return 'Grave';
   if (score >= 31) return 'Medio';
@@ -80,6 +81,7 @@ function openModal(incident) {
   modalTitle.textContent = `Detalle: ${(incident.tipo || '').replaceAll('_', ' ')}`;
   modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}`;
 
+  // ❌ NO números
   modalBody.innerHTML = `
     <div class="detailGrid">
       <div class="detailBox">
@@ -94,7 +96,10 @@ function openModal(incident) {
 
       <div class="detailBox">
         <div class="muted small">GPS</div>
-        <div><b>${fmtCoord(incident.latitude)}</b>, <b>${fmtCoord(incident.longitude)}</b></div>
+        <div>
+          <b>${fmtCoord(incident.latitude)}</b>,
+          <b>${fmtCoord(incident.longitude)}</b>
+        </div>
       </div>
     </div>
   `;
@@ -128,8 +133,11 @@ function renderCards(data) {
         <span class="badge ${sevColor(label)}">${label}</span>
       </div>
 
+      <!--  SIN score numérico -->
       <div class="muted small">Severidad: <b>${label}</b></div>
-      <div class="muted small">GPS: <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b></div>
+      <div class="muted small">
+        GPS: <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b>
+      </div>
     `;
 
     card.onclick = async () => {
