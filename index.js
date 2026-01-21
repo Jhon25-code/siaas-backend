@@ -3,6 +3,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
@@ -33,19 +34,12 @@ app.use((req, res, next) => {
   next();
 });
 
-/**
- * =========================
- * SERVIR FRONTEND (web/)
- * =========================
- */
+// =========================
+// SERVIR FRONTEND (web/)
+// =========================
 const WEB_DIR = path.join(__dirname, 'web');
-
-// Servir CSS, JS, imágenes (cache normal)
 app.use(express.static(WEB_DIR));
 
-/**
- * Forzar carga correcta de páginas HTML
- */
 app.get('/login.html', (req, res) => {
   res.sendFile(path.join(WEB_DIR, 'login.html'));
 });
@@ -54,24 +48,47 @@ app.get('/dashboard.html', (req, res) => {
   res.sendFile(path.join(WEB_DIR, 'dashboard.html'));
 });
 
-// Raíz → login
 app.get('/', (req, res) => {
   res.redirect('/login.html');
 });
 
-// ==================
-// Base de datos en memoria
-// ==================
-let incidents = [];
+// =========================
+// 📦 PERSISTENCIA SIMPLE
+// =========================
+const DATA_FILE = path.join(__dirname, 'incidents.json');
 
-/**
- * Roles oficiales
- */
+function loadIncidents() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+    }
+  } catch (e) {
+    console.error('❌ Error cargando incidents.json', e);
+  }
+  return [];
+}
+
+function saveIncidents() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(incidents, null, 2));
+  } catch (e) {
+    console.error('❌ Error guardando incidents.json', e);
+  }
+}
+
+// =========================
+// Base de datos (persistente)
+// =========================
+let incidents = loadIncidents();
+
+// ==================
+// Roles oficiales
+// ==================
 const ROLES = ['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN'];
 
-/**
- * Usuarios DEMO
- */
+// ==================
+// Usuarios DEMO
+// ==================
 const users = [
   { id: 1, username: 'topico', passwordHash: bcrypt.hashSync('123456', 10), role: 'TOPICO', zone: 'ZONA_1', name: 'Tópico' },
   { id: 2, username: 'admin', passwordHash: bcrypt.hashSync('123456', 10), role: 'ADMIN', zone: null, name: 'Admin' },
@@ -87,9 +104,6 @@ function generateId() {
   return String(Date.now()) + Math.random().toString(16).slice(2);
 }
 
-/**
- * Middleware de autenticación
- */
 function authRequired(req, res, next) {
   const h = req.headers.authorization || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : null;
@@ -103,9 +117,6 @@ function authRequired(req, res, next) {
   }
 }
 
-/**
- * Verificar roles permitidos
- */
 function requireRole(roles) {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
@@ -139,10 +150,6 @@ app.post('/auth/login', (req, res) => {
 // =====================
 // 📌 INCIDENTES API
 // =====================
-
-/**
- * Crear incidente (APP MÓVIL)
- */
 app.post('/incidents', authRequired, (req, res) => {
   const data = req.body;
 
@@ -159,75 +166,33 @@ app.post('/incidents', authRequired, (req, res) => {
   };
 
   incidents.push(incident);
+  saveIncidents();
 
   res.json({ ok: true, incident });
 });
 
-/**
- * Listar incidentes (Dashboard Web)
- */
 app.get('/incidents', authRequired, (req, res) => {
   res.json(incidents);
 });
 
-/**
- * Obtener incidente por ID
- */
 app.get('/incidents/:id', authRequired, (req, res) => {
   const i = incidents.find(x => x.id === req.params.id);
   if (!i) return res.status(404).json({ message: 'No encontrado' });
   res.json(i);
 });
 
-/**
- * Sincronización BATCH (APP MÓVIL)
- */
-app.post('/incidents/sync', authRequired, (req, res) => {
-  const list = req.body || [];
+app.patch('/incidents/:id/status',
+  authRequired,
+  requireRole(['TOPICO', 'SUPERVISOR', 'ADMIN']),
+  (req, res) => {
+    const inc = incidents.find(x => x.id === req.params.id);
+    if (!inc) return res.status(404).json({ message: 'No encontrado' });
 
-  list.forEach(item => {
-    const incident = {
-      id: generateId(),
-      tipo: item.tipo || 'SIN_TIPO',
-      descripcion: item.descripcion || '',
-      latitude: item.latitude || null,
-      longitude: item.longitude || null,
-      received_at: new Date().toISOString(),
-      status: 'NUEVA',
-      smart_score: item.smart_score || 0,
-      zone: req.user.zone || null
-    };
-    incidents.push(incident);
-  });
-
-  res.json({ ok: true, count: list.length });
-});
-
-/**
- * Cambiar estado
- */
-app.patch('/incidents/:id/status', authRequired, requireRole(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
-  const inc = incidents.find(x => x.id === req.params.id);
-  if (!inc) return res.status(404).json({ message: 'No encontrado' });
-
-  inc.status = req.body.status || inc.status;
-  res.json({ ok: true, incident: inc });
-});
-
-// =====================
-// KPI
-// =====================
-app.get('/kpi/severity', authRequired, (req, res) => {
-  let leve = 0, medio = 0, grave = 0;
-
-  incidents.forEach(x => {
-    if (x.smart_score >= 51) grave++;
-    else if (x.smart_score >= 31) medio++;
-    else leve++;
-  });
-
-  res.json({ leve, medio, grave });
-});
+    inc.status = req.body.status || inc.status;
+    saveIncidents();
+    res.json({ ok: true, incident: inc });
+  }
+);
 
 // =====================
 // Health check
