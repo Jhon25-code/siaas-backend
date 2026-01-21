@@ -6,24 +6,18 @@ const path = require('path');
 
 const app = express();
 
-/**
- * Render asigna el puerto dinámicamente
- */
+/* ==============================
+   CONFIG BASICA / RENDER
+============================== */
 const PORT = process.env.PORT || 3000;
-
-// En Render → Settings → Environment
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
-// ==================
-// Middleware base
-// ==================
 app.use(cors());
 app.use(express.json());
 
-/**
- * 🚨 IMPORTANTE (FIX DEFINITIVO)
- * Desactivar cache SOLO para HTML
- */
+/* ==============================
+   DESACTIVAR CACHE SOLO PARA HTML
+============================== */
 app.use((req, res, next) => {
   if (req.path.endsWith('.html')) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -34,14 +28,11 @@ app.use((req, res, next) => {
   next();
 });
 
-/**
- * =========================
- * SERVIR FRONTEND (web/)
- * =========================
- */
+/* ==============================
+   SERVIR FRONTEND (carpeta web/)
+============================== */
 const WEB_DIR = path.join(__dirname, 'web');
 
-// Servir CSS, JS, imágenes
 app.use(express.static(WEB_DIR));
 
 app.get('/login.html', (req, res) => {
@@ -56,23 +47,11 @@ app.get('/', (req, res) => {
   res.redirect('/login.html');
 });
 
-// ==================
-// MEMORIA TEMPORAL
-// ==================
+/* ==============================
+   MEMORIA LOCAL (DEMO)
+============================== */
 const incidents = [];
 
-function generateId() {
-  return String(Date.now()) + Math.random().toString(16).slice(2);
-}
-
-/**
- * Roles oficiales
- */
-const ROLES = ['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN'];
-
-/**
- * Usuarios DEMO
- */
 const users = [
   { id: 1, username: 'topico', passwordHash: bcrypt.hashSync('123456', 10), role: 'TOPICO', zone: 'ZONA_1', name: 'Tópico' },
   { id: 2, username: 'admin', passwordHash: bcrypt.hashSync('123456', 10), role: 'ADMIN', zone: null, name: 'Admin' },
@@ -81,12 +60,17 @@ const users = [
   { id: 5, username: 'auxiliar', passwordHash: bcrypt.hashSync('123456', 10), role: 'AUXILIAR', zone: 'ZONA_1', name: 'Auxiliar' },
 ];
 
-// ==================
-// UTILIDADES
-// ==================
+function generateId() {
+  return String(Date.now()) + Math.random().toString(16).slice(2);
+}
+
+/* ==============================
+   AUTH MIDDLEWARE
+============================== */
 function authRequired(req, res, next) {
   const h = req.headers.authorization || '';
   const token = h.startsWith('Bearer ') ? h.slice(7) : null;
+
   if (!token) return res.status(401).json({ message: 'No autenticado' });
 
   try {
@@ -97,20 +81,12 @@ function authRequired(req, res, next) {
   }
 }
 
-function requireRole(roles) {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'No autorizado' });
-    }
-    next();
-  };
-}
-
-// ==================
-// AUTH
-// ==================
+/* ==============================
+   LOGIN
+============================== */
 app.post('/auth/login', (req, res) => {
   const { username, password } = req.body || {};
+
   const user = users.find(u => u.username === username);
   if (!user) return res.status(401).json({ message: 'Credenciales inválidas' });
 
@@ -127,83 +103,72 @@ app.post('/auth/login', (req, res) => {
   res.json({ token, role: user.role, name: user.name, zone: user.zone, username: user.username });
 });
 
-
-// ============================
-// 🚨 API COMPLETA DE INCIDENTES
-// ============================
-
-/**
- * Crear incidente
- */
+/* ==============================
+   📌 ENDPOINT — CREAR INCIDENTE
+============================== */
 app.post('/incidents', authRequired, (req, res) => {
   const { tipo, descripcion, latitude, longitude, received_at } = req.body;
-
-  if (!tipo) return res.status(400).json({ message: 'Tipo es requerido' });
 
   const incident = {
     id: generateId(),
     tipo,
-    descripcion: descripcion || '',
-    latitude: latitude || null,
-    longitude: longitude || null,
+    descripcion,
+    latitude,
+    longitude,
     received_at: received_at || new Date().toISOString(),
-    status: 'NUEVA',
+    status: "NUEVA",
+    created_by: req.user.username,
     zone: req.user.zone || null,
-    smart_score: 0
+    smart_score: 0, // ya no mostramos número en dashboard
+    severidad: "leve" // placeholder
   };
 
   incidents.push(incident);
+  console.log("Nuevo incidente creado:", incident);
+
   res.json({ ok: true, incident });
 });
 
-/**
- * Listar incidentes
- */
+/* ==============================
+   📌 ENDPOINT — LISTAR INCIDENTES
+============================== */
 app.get('/incidents', authRequired, (req, res) => {
   res.json(incidents);
 });
 
-/**
- * Obtener incidente por ID
- */
-app.get('/incidents/:id', authRequired, (req, res) => {
-  const incident = incidents.find(i => i.id === req.params.id);
-  if (!incident) return res.status(404).json({ message: 'No encontrado' });
-  res.json(incident);
-});
-
-/**
- * Cambiar estado de incidente
- */
-app.put('/incidents/:id/status', authRequired, (req, res) => {
+/* ==============================
+   📌 ENDPOINT — CAMBIAR ESTADO
+============================== */
+app.patch('/incidents/:id/status', authRequired, (req, res) => {
+  const { id } = req.params;
   const { status } = req.body;
-  const allowed = ['NUEVA', 'RECIBIDA', 'EN_ATENCION', 'CERRADA'];
 
-  if (!allowed.includes(status)) {
-    return res.status(400).json({ message: 'Estado inválido' });
-  }
-
-  const incident = incidents.find(i => i.id === req.params.id);
-  if (!incident) return res.status(404).json({ message: 'No encontrado' });
+  const incident = incidents.find(i => i.id === id);
+  if (!incident) return res.status(404).json({ message: "No encontrado" });
 
   incident.status = status;
+  incident.history = incident.history || [];
+  incident.history.push({
+    status,
+    at: new Date().toISOString(),
+    by: req.user.username
+  });
+
   res.json({ ok: true, incident });
 });
 
-
-// ==================
-// HEALTH CHECK
-// ==================
+/* ==============================
+   HEALTHCHECK
+============================== */
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'SIAAS', time: new Date().toISOString() });
 });
 
-// ==================
-// START SERVER
-// ==================
+/* ==============================
+   START SERVER
+============================== */
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor SIAAS activo:
   → http://localhost:${PORT}
-  → https://siaas-backend.onrender.com
-  `);
+  → https://siaas-backend.onrender.com`);
 });
