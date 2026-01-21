@@ -9,22 +9,18 @@ document.getElementById('logout').onclick = () => {
   window.location.href = '/login.html';
 };
 
-// Datos de sesión
+// ================= SESIÓN =================
 const SESSION = {
   token: localStorage.getItem('token') || '',
   role: (localStorage.getItem('role') || '').toUpperCase(),
   name: localStorage.getItem('name') || '',
   zone: localStorage.getItem('zone') || '',
-  username: localStorage.getItem('username') || '',
 };
 
-// Mostrar "quién"
 document.getElementById('who').textContent =
   `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;
 
-/**
- * Control de acceso por rol
- */
+// ================= ROLES =================
 const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
 if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
   alert('No autorizado para acceder al panel web.');
@@ -32,26 +28,20 @@ if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
   window.location.href = '/login.html';
 }
 
-const CAN_CHANGE_STATUS = ['TOPICO', 'SUPERVISOR', 'ADMIN'].includes(SESSION.role);
+const CAN_CHANGE_STATUS = WEB_ROLES_ALLOWED.includes(SESSION.role);
 const IS_ADMIN = SESSION.role === 'ADMIN';
 
 const adminSection = document.getElementById('adminSection');
 if (adminSection) adminSection.style.display = IS_ADMIN ? '' : 'none';
 
-// Vistas
-const usersView = document.getElementById('usersView');
-const reportsView = document.getElementById('reportsView');
+// ================= ELEMENTOS =================
 const cardsEl = document.getElementById('cards');
 const emptyEl = document.getElementById('empty');
-const legendIS = document.getElementById('legendIS');
-const usersTableWrap = document.getElementById('usersTableWrap');
-const btnExportCsv = document.getElementById('btnExportCsv');
-const reportsMsg = document.getElementById('reportsMsg');
 
-/* ---------- helpers ---------- */
-function sevColor(sev) {
-  if (sev === 'grave') return 'red';
-  if (sev === 'medio') return 'orange';
+// ================= HELPERS =================
+function sevColor(label) {
+  if (label === 'Grave') return 'red';
+  if (label === 'Medio') return 'orange';
   return 'green';
 }
 
@@ -78,28 +68,28 @@ function fmtDate(iso) {
   try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }
 }
 
-/* ---------- modal ---------- */
+// ================= MODAL =================
 const modal = document.getElementById('modal');
 const modalBody = document.getElementById('modalBody');
 const modalTitle = document.getElementById('modalTitle');
 const modalSub = document.getElementById('modalSub');
 
 function openModal(incident) {
-  modalTitle.textContent = `Detalle: ${(incident.tipo || '').replaceAll('_',' ')}`;
-  modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}${incident.zone ? ' · ' + incident.zone : ''}`;
+  const label = scoreLabel(incident.smart_score ?? 0);
 
-  const score = incident.smart_score ?? 0;
+  modalTitle.textContent = `Detalle: ${(incident.tipo || '').replaceAll('_', ' ')}`;
+  modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}`;
 
   modalBody.innerHTML = `
     <div class="detailGrid">
       <div class="detailBox">
         <div class="muted small">Estado</div>
-        <div><b>${statusLabel(incident.status || 'NUEVA')}</b></div>
+        <div><b>${statusLabel(incident.status)}</b></div>
       </div>
 
       <div class="detailBox">
         <div class="muted small">Severidad</div>
-        <div><b>${scoreLabel(score)}</b></div>
+        <div><b>${label}</b></div>
       </div>
 
       <div class="detailBox">
@@ -112,53 +102,50 @@ function openModal(incident) {
   modal.classList.remove('hidden');
 }
 
-/* ---------- render incident cards ---------- */
-function renderCards(data, route) {
+// ================= TARJETAS =================
+function renderCards(data) {
   cardsEl.innerHTML = '';
   emptyEl.textContent = '';
 
   if (!data.length) {
-    emptyEl.textContent = route === 'historial'
-      ? 'No hay incidentes cerrados aún.'
-      : 'No hay alertas por el momento.';
+    emptyEl.textContent = 'No hay alertas por el momento.';
     return;
   }
 
   data.forEach(i => {
-    const score = i.smart_score ?? 0;
-    const label = scoreLabel(score);
+    const label = scoreLabel(i.smart_score ?? 0);
 
-    const c = document.createElement('div');
-    c.className = 'cardItem';
-    c.dataset.id = i.id;
+    const card = document.createElement('div');
+    card.className = 'cardItem';
 
-    c.innerHTML = `
+    card.innerHTML = `
       <div class="row">
         <div>
-          <div class="title">${(i.tipo || '').replaceAll('_',' ')}</div>
+          <div class="title">${(i.tipo || '').replaceAll('_', ' ')}</div>
           <div class="muted small">${fmtDate(i.received_at)}</div>
           <div class="statusPill">${statusLabel(i.status)}</div>
         </div>
-        <span class="badge ${sevColor(label.toLowerCase())}">${label}</span>
+        <span class="badge ${sevColor(label)}">${label}</span>
       </div>
 
       <div class="muted small">Severidad: <b>${label}</b></div>
       <div class="muted small">GPS: <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b></div>
     `;
 
-    c.onclick = async () => {
+    card.onclick = async () => {
       const incident = await API.request(`/incidents/${i.id}`);
       openModal(incident);
     };
 
-    cardsEl.appendChild(c);
+    cardsEl.appendChild(card);
   });
 }
 
-/* ---------- carga ---------- */
+// ================= CARGA =================
 async function load() {
   const data = await API.request('/incidents');
-  renderCards(data, 'alertas');
+  renderCards(data);
 }
 
 load();
+setInterval(load, 4000);
