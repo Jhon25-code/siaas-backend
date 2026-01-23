@@ -15,23 +15,33 @@
 
 <body class="loginPage">
 
-<!-- 🔐 Si ya hay sesión, ir directo al dashboard -->
+<!-- 🔐 Si ya hay sesión válida, ir al dashboard -->
 <script>
-    const token = localStorage.getItem('token');
-    if (token) {
+    try {
+      const token = localStorage.getItem('token');
+      if (token && token.split('.').length === 3) {
         window.location.href = '/dashboard.html';
+      }
+    } catch (e) {
+      localStorage.clear();
     }
 </script>
 
-<!-- Lado izquierdo (Hero / Foto) -->
+<!-- Lado izquierdo (Hero / Imagen) -->
 <section class="loginHero" aria-hidden="true"></section>
 
 <!-- Lado derecho (Login centrado) -->
 <main class="loginWrap">
     <section class="loginCard" aria-label="Acceso al sistema">
 
+        <!-- Marca -->
         <header class="brand">
-            <img class="brandLogo" src="/images/logo_siaas.png" alt="Logo SIAAS" />
+            <img
+                    class="brandLogo"
+                    src="/images/logo_siaas.png"
+                    alt="Logo SIAAS"
+                    onerror="this.style.display='none'"
+            />
             <div class="brandText">
                 <h1>SIAAS</h1>
                 <p>Sistema inteligente de alertas agrícolas</p>
@@ -40,7 +50,13 @@
 
         <div class="divider"></div>
 
-        <form id="loginForm" class="form" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <!-- Formulario -->
+        <form
+                id="loginForm"
+                autocomplete="off"
+                autocapitalize="none"
+                spellcheck="false"
+        >
             <label for="username">Usuario</label>
             <input
                     id="username"
@@ -60,10 +76,12 @@
                     required
             />
 
-            <button class="btnPrimary" type="submit">Ingresar</button>
+            <button class="btnPrimary" type="submit">
+                Ingresar
+            </button>
 
             <!-- Mensaje de error -->
-            <p id="msg" class="error"></p>
+            <p id="msg" class="error" aria-live="polite"></p>
         </form>
 
         <!-- Footer -->
