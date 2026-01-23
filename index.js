@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 
-const auth = require('./middleware/auth'); // ✅ USAMOS TU MIDDLEWARE
+const auth = require('./middleware/auth');
 
 const app = express();
 
@@ -36,12 +36,20 @@ app.use((req, res, next) => {
   next();
 });
 
-// =========================
-// SERVIR FRONTEND (web/)
-// =========================
+// =====================================================
+// ✅ SERVIR FRONTEND (web/) — FIX DEFINITIVO
+// =====================================================
 const WEB_DIR = path.join(__dirname, 'web');
+
+// 🔥 IMPORTANTE: estáticos explícitos
+app.use('/css', express.static(path.join(WEB_DIR, 'css')));
+app.use('/js', express.static(path.join(WEB_DIR, 'js')));
+app.use('/images', express.static(path.join(WEB_DIR, 'images')));
+
+// 🔥 fallback general
 app.use(express.static(WEB_DIR));
 
+// Rutas HTML explícitas
 app.get('/login.html', (req, res) => {
   res.sendFile(path.join(WEB_DIR, 'login.html'));
 });
@@ -210,3 +218,4 @@ app.listen(PORT, '0.0.0.0', () => {
   → https://siaas-backend.onrender.com
   `);
 });
+
