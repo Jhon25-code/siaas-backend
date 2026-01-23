@@ -4,7 +4,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>SIAAS | Panel</title>
+
+    <!-- CSS principal -->
     <link rel="stylesheet" href="/css/styles.css" />
+
+    <!-- Leaflet CSS (DEBE IR EN HEAD) -->
+    <link
+            rel="stylesheet"
+            href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
 </head>
 <body>
 
@@ -58,20 +66,18 @@
 
         <!-- MAPA -->
         <div class="mapWrapper">
-            <div id="map" class="mapBox">
-                <span>🗺️ Mapa de aproximación de incidentes</span>
-            </div>
+            <div id="map" class="mapBox"></div>
         </div>
 
         <!-- LEYENDA IS -->
         <div class="legend" id="legendIS">
             <span><b>IS</b> (Índice de Severidad):</span>
-            <span class="pill green"> Leve</span>
-            <span class="pill orange"> Medio</span>
-            <span class="pill red"> Grave</span>
+            <span class="pill green">Leve</span>
+            <span class="pill orange">Medio</span>
+            <span class="pill red">Grave</span>
         </div>
 
-        <!-- 🔥 FILTRO POR ESTADO (PASO 5) -->
+        <!-- 🔥 FILTRO POR ESTADO -->
         <div class="actions" style="margin-bottom:12px;">
             <button class="btn" data-filter="ALL">Todos</button>
             <button class="btn" data-filter="NUEVA">Abiertos</button>
@@ -79,8 +85,8 @@
             <button class="btn" data-filter="CERRADA">Cerrados</button>
         </div>
 
-        <!-- TARJETAS -->
-        <div id="cards" class="cards"></div>
+        <!-- ✅ TARJETAS (FIX CLAVE AQUÍ) -->
+        <div id="cards" class="cardsGrid"></div>
         <p class="muted" id="empty"></p>
 
         <!-- USUARIOS (ADMIN) -->
@@ -127,11 +133,7 @@
 <script src="/js/api.js"></script>
 <script src="/js/dashboard.js"></script>
 
-<!-- Leaflet -->
-<link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 </body>
