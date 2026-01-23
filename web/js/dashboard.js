@@ -55,12 +55,8 @@ if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
 }
 
 const CAN_CHANGE_STATUS = WEB_ROLES_ALLOWED.includes(SESSION.role);
-const IS_ADMIN = SESSION.role === 'ADMIN';
 
-const adminSection = document.getElementById('adminSection');
-if (adminSection) adminSection.style.display = IS_ADMIN ? '' : 'none';
-
-// ================= FILTRO POR ESTADO (PASO 5) =================
+// ================= FILTRO =================
 let CURRENT_FILTER = 'ALL';
 
 document.querySelectorAll('[data-filter]').forEach(btn => {
@@ -92,14 +88,21 @@ function fmtCoord(v) {
   return Number(v).toFixed(6);
 }
 
-function statusLabel(st) {
-  if (st === 'EN_ATENCION') return 'EN ATENCIÓN';
-  if (st === 'CERRADA') return 'CERRADA';
-  return 'ABIERTO';
-}
-
 function fmtDate(iso) {
   try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }
+}
+
+// ================= NORMALIZAR ESTADO =================
+function normalizeStatus(status) {
+  if (!status) return 'NUEVA';
+
+  const st = status.toLowerCase();
+
+  if (st === 'pendiente') return 'NUEVA';
+  if (st === 'en_atencion') return 'EN_ATENCION';
+  if (st === 'cerrado') return 'CERRADA';
+
+  return status.toUpperCase();
 }
 
 // ================= ESTADO VISUAL =================
@@ -111,11 +114,11 @@ function stateUI(status) {
 
 // ================= CAMBIO DE ESTADO =================
 async function changeStatus(id, nextStatus) {
-  if (!confirm(`¿Cambiar estado a "${statusLabel(nextStatus)}"?`)) return;
+  if (!confirm(`¿Cambiar estado a "${nextStatus}"?`)) return;
 
   await API.request(`/incidents/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status: nextStatus })
+    body: JSON.stringify({ status: nextStatus.toLowerCase() })
   });
 
   load();
@@ -135,7 +138,7 @@ function openModal(incident) {
     <div class="detailGrid">
       <div class="detailBox">
         <div class="muted small">Estado</div>
-        <b>${statusLabel(incident.status)}</b>
+        <b>${normalizeStatus(incident.status)}</b>
       </div>
       <div class="detailBox">
         <div class="muted small">Severidad</div>
@@ -157,21 +160,25 @@ function renderCards(data) {
   cardsEl.innerHTML = '';
   emptyEl.textContent = '';
 
+  // 🔥 SOLO ACTIVOS
+  data = data.filter(i => normalizeStatus(i.status) !== 'CERRADA');
+
   if (!data.length) {
-    emptyEl.textContent = 'No hay alertas por el momento.';
+    emptyEl.textContent = 'No hay alertas activas.';
     return;
   }
 
   data.forEach(i => {
+    const status = normalizeStatus(i.status);
     const label = scoreLabel(i.smart_score ?? 0);
-    const state = stateUI(i.status);
+    const state = stateUI(status);
 
     let actionBtn = '';
     if (CAN_CHANGE_STATUS) {
-      if (i.status === 'NUEVA' || i.status === 'RECIBIDA') {
-        actionBtn = `<button class="btn ok" onclick="event.stopPropagation(); changeStatus(${i.id}, 'EN_ATENCION')">En atención</button>`;
-      } else if (i.status === 'EN_ATENCION') {
-        actionBtn = `<button class="btn danger" onclick="event.stopPropagation(); changeStatus(${i.id}, 'CERRADA')">Cerrar</button>`;
+      if (status === 'NUEVA') {
+        actionBtn = `<button class="btn ok" onclick="event.stopPropagation(); changeStatus(${i.id}, 'en_atencion')">En atención</button>`;
+      } else if (status === 'EN_ATENCION') {
+        actionBtn = `<button class="btn danger" onclick="event.stopPropagation(); changeStatus(${i.id}, 'cerrado')">Cerrar</button>`;
       }
     }
 
@@ -211,7 +218,7 @@ async function load() {
   let data = await API.request('/incidents');
 
   if (CURRENT_FILTER !== 'ALL') {
-    data = data.filter(i => i.status === CURRENT_FILTER);
+    data = data.filter(i => normalizeStatus(i.status) === CURRENT_FILTER);
   }
 
   renderCards(data);
@@ -250,6 +257,7 @@ function updateMap(incidents) {
 
   incidents.forEach(i => {
     if (!i.latitude || !i.longitude) return;
+    if (normalizeStatus(i.status) === 'CERRADA') return;
 
     const color = sevColorMap(i.smart_score ?? 0);
 
@@ -261,7 +269,7 @@ function updateMap(incidents) {
     }).bindPopup(`
       <b>${(i.tipo || '').replaceAll('_',' ')}</b><br>
       Severidad: ${scoreLabel(i.smart_score ?? 0)}<br>
-      Estado: ${statusLabel(i.status)}
+      Estado: ${normalizeStatus(i.status)}
     `).addTo(markersLayer);
   });
 }
