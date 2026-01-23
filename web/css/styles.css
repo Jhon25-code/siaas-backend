@@ -1,8 +1,164 @@
+/* ====== BASE ====== */
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #f4f6f8;
+}
+
+.muted { color:#6b7280; }
+.small { font-size:12px; }
+
+/* ====== LAYOUT ====== */
+.layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ====== SIDEBAR ====== */
+.sidebar {
+  width: 240px;
+  background: #1f6f3b;
+  color: #fff;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.who {
+  font-size: 13px;
+  opacity: .9;
+  margin-bottom: 10px;
+}
+
+/* Estado conexión */
+.connectionStatus {
+  margin: 8px 0 14px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+.connectionStatus.online {
+  background: #e6f6ec;
+  color: #1e7e34;
+}
+
+/* Navegación */
+.sidebar nav a {
+  display: block;
+  padding: 10px;
+  border-radius: 10px;
+  color: #fff;
+  text-decoration: none;
+  margin-bottom: 6px;
+}
+.sidebar nav a.active,
+.sidebar nav a:hover {
+  background: rgba(255,255,255,.18);
+}
+
+.logout {
+  margin-top: auto;
+  background: rgba(0,0,0,.25);
+  border-radius: 10px;
+  padding: 10px;
+  color: #fff;
+  border: 0;
+  cursor: pointer;
+}
+
+/* ====== MAIN ====== */
+.main {
+  flex: 1;
+  padding: 22px;
+}
+
+/* ====== HEADER ====== */
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.sectionHeader h1 {
+  margin: 0;
+}
+
+.sectionActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ====== BOTONES ====== */
+.btn {
+  border: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: #1976d2;
+  color: #fff;
+}
+
+.btn.ok {
+  background: #1e7e34;
+  color: #fff;
+}
+
+.btn.danger {
+  background: #c62828;
+  color: #fff;
+}
+
+/* ====== MAPA ====== */
+.mapWrapper {
+  margin: 14px 0 18px;
+}
+
+.mapBox {
+  width: 100%;
+  height: 320px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  background: #e5e7eb;
+}
+
+/* ====== LEYENDA ====== */
+.legend {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+}
+.pill.green { background:#2e7d32; }
+.pill.orange { background:#ef6c00; }
+.pill.red { background:#c62828; }
+
 /* =====================================================
    🔥 DASHBOARD – TARJETAS PROFESIONALES (GRID)
    ===================================================== */
 
-/* Contenedor de tarjetas */
 .cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -10,7 +166,6 @@
   margin-top: 12px;
 }
 
-/* Tarjeta individual */
 .cardItem {
   background: #ffffff;
   border-radius: 18px;
@@ -25,7 +180,6 @@
   box-shadow: 0 16px 40px rgba(0,0,0,.16);
 }
 
-/* Fila superior */
 .cardItem .row {
   display: flex;
   justify-content: space-between;
@@ -33,56 +187,41 @@
   gap: 12px;
 }
 
-/* Título */
 .cardItem .title {
   font-size: 15px;
   font-weight: 800;
   text-transform: capitalize;
 }
 
-/* Fecha */
-.cardItem .muted.small {
-  margin-top: 2px;
-}
-
-/* Badge severidad */
 .badge {
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 800;
   color: #fff;
-  line-height: 1;
-  white-space: nowrap;
 }
 
-.badge.green { background: #2e7d32; }
-.badge.orange { background: #ef6c00; }
-.badge.red { background: #c62828; }
+.badge.green { background:#2e7d32; }
+.badge.orange { background:#ef6c00; }
+.badge.red { background:#c62828; }
 
-/* Estado */
 .stateBadge {
   display: inline-block;
-  margin-top: 8px;
+  margin-top: 6px;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
 }
 
-/* Acciones */
+.state-open { background:#e0f2fe; color:#0369a1; }
+.state-attention { background:#fff7ed; color:#c2410c; }
+.state-closed { background:#ecfdf5; color:#047857; }
+
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-}
-
-/* Botones dentro de tarjetas */
-.actions .btn {
-  width: auto;
-  padding: 6px 12px;
-  font-size: 12px;
-  border-radius: 999px;
+  margin-top: 10px;
 }
 
 /* Empty */
@@ -91,9 +230,8 @@
   font-size: 14px;
 }
 
-/* Responsive extra */
-@media (max-width: 600px) {
-  .cards {
-    grid-template-columns: 1fr;
-  }
+/* Responsive */
+@media (max-width: 700px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; }
 }
