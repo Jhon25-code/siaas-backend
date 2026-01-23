@@ -5,7 +5,6 @@ body { margin:0; font-family: Arial, sans-serif; background:#f4f6f8; }
 .error { color:#c62828; margin-top:10px; }
 
 /* ====== LOGIN (ANTIGUO) ====== */
-/* (Lo dejo por si luego quieres volver a usarlo, pero tu login actual usa loginPage) */
 .bg{
   display:flex;
   align-items:center;
@@ -40,8 +39,8 @@ input{
 }
 
 input:focus{
-  border-color:#1976d2;
-  box-shadow:0 0 0 3px rgba(25,118,210,.15);
+  border-color:#16a34a;
+  box-shadow:0 0 0 3px rgba(22,163,74,.18);
 }
 
 button{
@@ -64,10 +63,46 @@ button:active{ transform:scale(.99); }
 .layout { display:flex; min-height:100vh; }
 
 /* Sidebar */
-.sidebar { width:240px; background:#1f6f3b; color:#fff; padding:16px; }
-.logo { font-size:20px; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
-.who { font-size:12px; opacity:.9; margin-bottom:18px; }
+.sidebar {
+  width:240px;
+  background:#1f6f3b;
+  color:#fff;
+  padding:16px;
+}
 
+.logo {
+  font-size:20px;
+  margin-bottom:10px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.who {
+  font-size:12px;
+  opacity:.9;
+  margin-bottom:10px;
+}
+
+/* ====== ESTADO DE CONEXIÓN ====== */
+.connectionStatus {
+  margin: 10px 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+.connectionStatus.online {
+  background: #e6f6ec;
+  color: #1e7e34;
+}
+.connectionStatus.offline {
+  background: #fdecea;
+  color: #b02a37;
+}
+
+/* Navegación */
 .sidebar a{
   display:block;
   padding:10px;
@@ -77,86 +112,30 @@ button:active{ transform:scale(.99); }
   margin-bottom:6px;
   transition: background .15s ease;
 }
-
 .sidebar a:hover{ background:rgba(255,255,255,.12); }
 .sidebar a.active { background:rgba(255,255,255,.18); }
 
-.logout { background:rgba(0,0,0,.25); margin-top:16px; width:100%; }
+.logout {
+  background:rgba(0,0,0,.25);
+  margin-top:16px;
+  width:100%;
+}
 
 /* Main */
 .main { flex:1; padding:22px; }
-.legend { display:flex; gap:10px; align-items:center; margin:10px 0 18px; flex-wrap:wrap; }
-.pill { padding:5px 10px; border-radius:999px; font-size:12px; color:#fff; }
 
-.green { background:#2e7d32; }
-.orange { background:#ef6c00; }
-.red { background:#c62828; }
-
-.cards { display:grid; grid-template-columns: repeat(auto-fill,minmax(280px,1fr)); gap:14px; }
-.cardItem { background:#fff; border-radius:14px; padding:14px; box-shadow:0 6px 18px rgba(0,0,0,.08); }
-.row { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
-.title { font-weight:bold; font-size:16px; text-transform:capitalize; }
-.badge { padding:4px 10px; border-radius:999px; font-size:12px; color:#fff; font-weight:bold; }
-
-/*  Badge por severidad */
-.badge.green{ background:#2e7d32; }
-.badge.orange{ background:#ef6c00; }
-.badge.red{ background:#c62828; }
-
-/*  Estado (pill gris) */
-.statusPill{
-  display:inline-block;
-  margin-top:6px;
-  padding:4px 10px;
-  border-radius:999px;
-  font-size:12px;
-  background:#eef2f7;
-  color:#111827;
-  font-weight:bold;
-}
-
-/*  Botones de flujo */
-.actions { display:flex; gap:8px; margin-top:12px; }
-.btn{
-  flex:1;
-  padding:10px;
-  border-radius:10px;
-  border:0;
-  cursor:pointer;
-  background:#e5e7eb;
-  color:#111827;
-  font-weight:bold;
-  transition: filter .15s ease, transform .05s ease;
-}
-.btn:hover{ filter:brightness(.97); }
-.btn:active{ transform:scale(.99); }
-
-.btn.primary{ background:#1976d2; color:#fff; }
-.btn.danger { background:#ef4444; color:#fff; }
-.btn.ok { background:#16a34a; color:#fff; }
-
-/*  Responsive */
-@media (max-width: 900px){
-  .layout{ flex-direction:column; }
-  .sidebar{ width:auto; border-radius:0; }
-  .main{ padding:16px; }
-}
-
-/* ====== MODAL (Detalle Incidente) ====== */
+/* ====== MODAL ====== */
 .modal.hidden { display: none; }
-
 .modal {
   position: fixed;
   inset: 0;
   z-index: 999;
 }
-
 .modalBackdrop {
   position: absolute;
   inset: 0;
   background: rgba(0,0,0,.45);
 }
-
 .modalCard {
   position: relative;
   width: min(720px, calc(100% - 24px));
@@ -166,7 +145,6 @@ button:active{ transform:scale(.99); }
   box-shadow: 0 20px 60px rgba(0,0,0,.25);
   overflow: hidden;
 }
-
 .modalHeader {
   display: flex;
   justify-content: space-between;
@@ -175,12 +153,10 @@ button:active{ transform:scale(.99); }
   padding: 14px 16px;
   border-bottom: 1px solid #e5e7eb;
 }
-
 .modalTitle {
   font-weight: 800;
   font-size: 16px;
 }
-
 .iconBtn {
   border: 0;
   background: #f3f4f6;
@@ -190,13 +166,11 @@ button:active{ transform:scale(.99); }
   cursor: pointer;
   font-weight: 900;
 }
-
 .modalBody {
   padding: 14px 16px;
   max-height: calc(100vh - 190px);
   overflow: auto;
 }
-
 .modalFooter {
   padding: 12px 16px;
   border-top: 1px solid #e5e7eb;
@@ -205,304 +179,173 @@ button:active{ transform:scale(.99); }
   gap: 10px;
 }
 
-/* Bloques dentro del modal */
-.detailGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.detailBox {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 10px;
-}
-
-.detailBox b { color:#111827; }
-
-@media (max-width: 700px) {
-  .modalCard { margin: 16px auto; }
-  .detailGrid { grid-template-columns: 1fr; }
-}
-
-/* ====== TIMELINE / HISTORIAL (para modal) ====== */
-.timeline {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.sla {
-  background: #f3f4f6;
-  border-radius: 10px;
-  padding: 8px 10px;
-  margin-bottom: 10px;
-  font-size: 13px;
-}
-
-.tl-item {
-  display: flex;
-  gap: 10px;
-  position: relative;
-  padding: 10px 0;
-}
-
-.tl-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #1976d2;
-  margin-top: 6px;
-  flex-shrink: 0;
-}
-
-.tl-content { flex: 1; }
-
-.tl-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-}
-
-.tl-item:not(:last-child) .tl-content {
-  border-left: 2px solid #e5e7eb;
-  padding-left: 12px;
-  margin-left: -17px;
-}
-
 /* =====================================================
-   LOGIN PRO (SIAAS) - CENTRADO Y MÁS PRESENTABLE
+   LOGIN PRO (SIAAS) – HEADER BONITO Y PRESENTABLE
    ===================================================== */
 
-:root{
-  --siaas-card: rgba(255,255,255,.96);
-  --siaas-text: #0f172a;
-  --siaas-muted: #475569;
-  --siaas-line: rgba(15,23,42,.12);
-  --siaas-primary: #1f6f3b;
-  --siaas-primary2: #16552c;
-  --siaas-danger: #c62828;
-}
-
 body.loginPage{
-  margin: 0;
-  min-height: 100vh;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  color: var(--siaas-text);
+  height: 100dvh;
+  overflow: hidden;
   display: grid;
-  grid-template-columns: 1.35fr 1fr; /* izquierda más ancha */
+  grid-template-columns: 1.4fr 1fr;
   background: #0b1220;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 }
 
-/* HERO (IZQUIERDA) */
+/* HERO */
 .loginHero{
-  min-height: 100vh;
   position: relative;
-  background:
-    url("/images/bg_agroindustrial.jpg") center / cover no-repeat;
+  height: 100dvh;
+  background: url("/images/bg_agroindustrial.jpg") center / cover no-repeat;
 }
-
 .loginHero::after{
   content:"";
   position:absolute;
   inset:0;
-  background: linear-gradient(90deg, rgba(2,6,23,.62), rgba(2,6,23,.12));
+  background: linear-gradient(90deg, rgba(2,6,23,.55), rgba(2,6,23,.15));
 }
 
-/* WRAP (DERECHA) */
+/* LOGIN PANEL */
 .loginWrap{
+  height: 100dvh;
   display:flex;
   align-items:center;
   justify-content:center;
-  padding: 32px;
+  padding: 24px;
   background: #f8fafc;
 }
 
-/* CARD */
 .loginCard{
-  width: min(520px, 100%);
-  background: var(--siaas-card);
-  border: 1px solid var(--siaas-line);
-  border-radius: 20px;
-  padding: 28px;
-  box-shadow: 0 24px 70px rgba(2,6,23,.16);
+  width: min(540px, 100%);
+  background: #fff;
+  border-radius: 22px;
+  padding: 32px;
+  box-shadow: 0 28px 80px rgba(2,6,23,.18);
 }
 
-/* CABECERA */
+/* ====== HEADER LOGIN (AQUÍ ESTÁ LA MAGIA ✨) ====== */
 .brand{
   display:flex;
   align-items:center;
-  gap: 12px;
+  gap:18px;
+  margin-bottom:18px;
 }
 
 .brandLogo{
-  width: 64px;
-  height: 64px;
-  object-fit: contain;
-  border-radius: 14px;
-  background: #fff;
-  border: 1px solid var(--siaas-line);
-  padding: 8px;
+  width:72px;              /* 👈 MÁS GRANDE */
+  height:72px;
+  object-fit:contain;
 }
 
 .brandText h1{
-  margin: 0;
-  font-size: 28px;
-  letter-spacing: .2px;
+  margin:0;
+  font-size:28px;
+  font-weight:800;
+  letter-spacing:.5px;
 }
 
 .brandText p{
-  margin: 4px 0 0 0;
-  color: var(--siaas-muted);
-  font-size: 13px;
-}
-
-.divider{
-  height: 1px;
-  background: var(--siaas-line);
-  margin: 18px 0;
-}
-
-/* FORM */
-.form label{
-  display:block;
-  font-weight: 700;
-  font-size: 13px;
-  margin: 10px 0 6px;
-  color: #111827;
-}
-
-.form input{
-  width: 100%;
-  padding: 13px 14px;
-  border-radius: 13px;
-  border: 1px solid rgba(15,23,42,.15);
-  outline: none;
-  background: rgba(255,255,255,.95);
-  transition: .15s ease;
-}
-
-.form input:focus{
-  border-color: rgba(31,111,59,.70);
-  box-shadow: 0 0 0 4px rgba(31,111,59,.16);
-}
-
-/* BOTON */
-.btnPrimary{
-  width: 100%;
-  margin-top: 14px;
-  padding: 13px 14px;
-  border: 0;
-  border-radius: 13px;
-  cursor: pointer;
-  font-weight: 800;
-  font-size: 14px;
-  color: #fff;
-  background: linear-gradient(180deg, var(--siaas-primary), var(--siaas-primary2));
-  box-shadow: 0 10px 25px rgba(31,111,59,.22);
-  transition: transform .08s ease, filter .15s ease;
-}
-
-.btnPrimary:hover{ filter: brightness(1.03); }
-.btnPrimary:active{ transform: translateY(1px); }
-
-/* ERROR */
-.loginCard .error{
-  margin: 10px 0 0 0;
-  color: var(--siaas-danger);
-  font-size: 13px;
-  min-height: 18px;
-}
-
-/* FOOTER */
-.loginFooter, .hint{
-  margin-top: 14px;
-  text-align:center;
+  margin:4px 0 0;
+  font-size:14px;
   color:#64748b;
-  font-size: 12px;
+}
+
+/* Divider */
+.divider{
+  height:1px;
+  background:#e5e7eb;
+  margin:16px 0 18px;
+}
+
+/* Botón principal */
+.btnPrimary{
+  background: linear-gradient(180deg,#1f7a3f,#14532d);
+  border-radius: 12px;
+  padding:12px;
+  font-size:15px;
+  font-weight:700;
+}
+
+/* Footer */
+.loginFooter{
+  text-align:center;
+  font-size:13px;
+  color:#64748b;
+  margin-top:18px;
 }
 
 /* Responsive */
 @media (max-width: 900px){
   body.loginPage{ grid-template-columns: 1fr; }
   .loginHero{ display:none; }
-  .loginWrap{ min-height: 100vh; }
 }
 
-/* =====================================================
-   DASHBOARD – HEADER ALERTAS (PASO 3)
-   ===================================================== */
-
-.sectionHeader {
+/* ====== LEYENDA IS (SEVERIDAD) ====== */
+.legend {
   display: flex;
-  justify-content: space-between;
+  gap: 10px;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  margin: 12px 0 18px;
   flex-wrap: wrap;
 }
 
-.sectionHeader h1,
-.sectionHeader h2 {
-  margin: 0;
-  font-size: 22px;
-  font-weight: 800;
-  color: #111827;
-}
-
-.sectionActions {
-  display: flex;
-  gap: 8px;
-}
-
-.sectionActions .btn {
-  padding: 8px 14px;
-  font-size: 13px;
-  border-radius: 10px;
-  background: #e5e7eb;
-  color: #111827;
-}
-
-.sectionActions .btn.primary {
-  background: #2563eb;
+.legend .pill {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
   color: #fff;
+  line-height: 1;
 }
 
-/* =====================================================
-   MAPA DE APROXIMACIÓN (PLACEHOLDER)
-   ===================================================== */
+/* Colores severidad */
+.pill.green {
+  background-color: #2e7d32; /* Leve */
+}
 
+.pill.orange {
+  background-color: #ef6c00; /* Medio */
+}
+
+.pill.red {
+  background-color: #c62828; /* Grave */
+}
+/* ====== MAPA DE INCIDENTES ====== */
 .mapWrapper {
-  margin-top: 16px;
-  margin-bottom: 18px;
+  margin: 14px 0 18px;
 }
 
 .mapBox {
   width: 100%;
   height: 320px;
-  background: #f3f4f6;
-  border-radius: 16px;
+  border-radius: 14px;
+  overflow: hidden;
   border: 1px dashed #cbd5e1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #64748b;
-  font-weight: 700;
-  font-size: 14px;
+  background: #e5e7eb;
 }
 
-/* Texto interno mapa */
-.mapBox span {
-  opacity: 0.85;
+/* ====== ESTADOS DE INCIDENTE ====== */
+.stateBadge{
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  margin-top:6px;
 }
 
-/* Responsive */
-@media (max-width: 900px) {
-  .sectionHeader {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.state-open{
+  background:#e0f2fe;
+  color:#0369a1;
 }
+
+.state-attention{
+  background:#fff7ed;
+  color:#c2410c;
+}
+
+.state-closed{
+  background:#ecfdf5;
+  color:#047857;
+}
+

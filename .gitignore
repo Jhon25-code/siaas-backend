@@ -2,3 +2,5 @@ node_modules/
 módulos_de_nodo/
 .idea/
 .env
+incidents.json
+

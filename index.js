@@ -5,6 +5,8 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 
+const auth = require('./middleware/auth'); // ✅ USAMOS TU MIDDLEWARE
+
 const app = express();
 
 /**
@@ -104,28 +106,6 @@ function generateId() {
   return String(Date.now()) + Math.random().toString(16).slice(2);
 }
 
-function authRequired(req, res, next) {
-  const h = req.headers.authorization || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
-  if (!token) return res.status(401).json({ message: 'No autenticado' });
-
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch {
-    return res.status(401).json({ message: 'Token inválido' });
-  }
-}
-
-function requireRole(roles) {
-  return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ message: 'No autorizado' });
-    }
-    next();
-  };
-}
-
 // ==================
 // AUTH
 // ==================
@@ -139,51 +119,71 @@ app.post('/auth/login', (req, res) => {
   }
 
   const token = jwt.sign(
-    { id: user.id, role: user.role, name: user.name, zone: user.zone, username: user.username },
+    {
+      id: user.id,
+      role: user.role,
+      name: user.name,
+      zone: user.zone,
+      username: user.username
+    },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
 
-  res.json({ token, role: user.role, name: user.name, zone: user.zone, username: user.username });
+  res.json({
+    token,
+    role: user.role,
+    name: user.name,
+    zone: user.zone,
+    username: user.username
+  });
 });
 
 // =====================
-// 📌 INCIDENTES API
+// 📌 INCIDENTES API (PROTEGIDO)
 // =====================
-app.post('/incidents', authRequired, (req, res) => {
-  const data = req.body;
+app.post('/incidents',
+  auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN']),
+  (req, res) => {
+    const data = req.body;
 
-  const incident = {
-    id: generateId(),
-    tipo: data.tipo || 'SIN_TIPO',
-    descripcion: data.descripcion || '',
-    latitude: data.latitude || null,
-    longitude: data.longitude || null,
-    received_at: new Date().toISOString(),
-    status: 'NUEVA',
-    smart_score: data.smart_score || 0,
-    zone: req.user.zone || null
-  };
+    const incident = {
+      id: generateId(),
+      tipo: data.tipo || 'SIN_TIPO',
+      descripcion: data.descripcion || '',
+      latitude: data.latitude || null,
+      longitude: data.longitude || null,
+      received_at: new Date().toISOString(),
+      status: 'NUEVA',
+      smart_score: data.smart_score || 0,
+      zone: req.user.zone || null
+    };
 
-  incidents.push(incident);
-  saveIncidents();
+    incidents.push(incident);
+    saveIncidents();
 
-  res.json({ ok: true, incident });
-});
+    res.json({ ok: true, incident });
+  }
+);
 
-app.get('/incidents', authRequired, (req, res) => {
-  res.json(incidents);
-});
+app.get('/incidents',
+  auth(['TOPICO', 'SUPERVISOR', 'ADMIN']),
+  (req, res) => {
+    res.json(incidents);
+  }
+);
 
-app.get('/incidents/:id', authRequired, (req, res) => {
-  const i = incidents.find(x => x.id === req.params.id);
-  if (!i) return res.status(404).json({ message: 'No encontrado' });
-  res.json(i);
-});
+app.get('/incidents/:id',
+  auth(['TOPICO', 'SUPERVISOR', 'ADMIN']),
+  (req, res) => {
+    const i = incidents.find(x => x.id === req.params.id);
+    if (!i) return res.status(404).json({ message: 'No encontrado' });
+    res.json(i);
+  }
+);
 
 app.patch('/incidents/:id/status',
-  authRequired,
-  requireRole(['TOPICO', 'SUPERVISOR', 'ADMIN']),
+  auth(['TOPICO', 'SUPERVISOR', 'ADMIN']),
   (req, res) => {
     const inc = incidents.find(x => x.id === req.params.id);
     if (!inc) return res.status(404).json({ message: 'No encontrado' });

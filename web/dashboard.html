@@ -8,11 +8,25 @@
 </head>
 <body>
 
+<!-- 🔐 PROTECCIÓN DE SESIÓN -->
+<script>
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/login.html';
+    }
+</script>
+
 <div class="layout">
     <!-- SIDEBAR -->
     <aside class="sidebar">
         <div class="logo"><b>SIAAS</b></div>
+
         <div class="who" id="who"></div>
+
+        <!-- 🔌 ESTADO DE CONEXIÓN -->
+        <div class="connectionStatus online" id="connectionStatus">
+            🟢 Conectado
+        </div>
 
         <nav>
             <div class="muted small" style="margin:10px 0 6px;">INCIDENTES</div>
@@ -32,7 +46,7 @@
     <!-- MAIN -->
     <main class="main">
 
-        <!-- HEADER DE SECCIÓN (NUEVO) -->
+        <!-- HEADER -->
         <div class="sectionHeader">
             <h1 id="title">Alertas registradas</h1>
 
@@ -42,14 +56,14 @@
             </div>
         </div>
 
-        <!-- MAPA DE APROXIMACIÓN (NUEVO - VISUAL) -->
+        <!-- MAPA -->
         <div class="mapWrapper">
-            <div class="mapBox">
+            <div id="map" class="mapBox">
                 <span>🗺️ Mapa de aproximación de incidentes</span>
             </div>
         </div>
 
-        <!-- LEYENDA IS (SE MANTIENE) -->
+        <!-- LEYENDA IS -->
         <div class="legend" id="legendIS">
             <span><b>IS</b> (Índice de Severidad):</span>
             <span class="pill green"> Leve</span>
@@ -57,7 +71,15 @@
             <span class="pill red"> Grave</span>
         </div>
 
-        <!-- ALERTAS / HISTORIAL (SE MANTIENE) -->
+        <!-- 🔥 FILTRO POR ESTADO (PASO 5) -->
+        <div class="actions" style="margin-bottom:12px;">
+            <button class="btn" data-filter="ALL">Todos</button>
+            <button class="btn" data-filter="NUEVA">Abiertos</button>
+            <button class="btn" data-filter="EN_ATENCION">En atención</button>
+            <button class="btn" data-filter="CERRADA">Cerrados</button>
+        </div>
+
+        <!-- TARJETAS -->
         <div id="cards" class="cards"></div>
         <p class="muted" id="empty"></p>
 
@@ -83,28 +105,34 @@
     </main>
 </div>
 
-<!-- MODAL (SIN CAMBIOS) -->
-<div id="modal" class="modal hidden" aria-hidden="true">
-    <div class="modalBackdrop" id="modalCloseBackdrop"></div>
-
-    <div class="modalCard" role="dialog" aria-modal="true">
+<!-- MODAL -->
+<div id="modal" class="modal hidden">
+    <div class="modalBackdrop"></div>
+    <div class="modalCard">
         <div class="modalHeader">
             <div>
-                <div id="modalTitle" class="modalTitle">Detalle del incidente</div>
+                <div id="modalTitle" class="modalTitle"></div>
                 <div id="modalSub" class="muted small"></div>
             </div>
-            <button id="modalCloseBtn" class="iconBtn">✕</button>
+            <button class="iconBtn" onclick="document.getElementById('modal').classList.add('hidden')">✕</button>
         </div>
-
         <div id="modalBody" class="modalBody"></div>
-
         <div class="modalFooter">
-            <button id="modalCloseBtn2" class="btn">Cerrar</button>
+            <button class="btn" onclick="document.getElementById('modal').classList.add('hidden')">Cerrar</button>
         </div>
     </div>
 </div>
 
+<!-- JS -->
 <script src="/js/api.js"></script>
 <script src="/js/dashboard.js"></script>
+
+<!-- Leaflet -->
+<link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 </body>
 </html>
