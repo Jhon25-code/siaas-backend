@@ -17,10 +17,9 @@ function parseJwt(token) {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
     const jsonPayload = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-        .join('')
+      atob(base64).split('').map(c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join('')
     );
     return JSON.parse(jsonPayload);
   } catch {
@@ -34,9 +33,9 @@ const jwtData = rawToken ? parseJwt(rawToken) : null;
 
 const SESSION = {
   token: rawToken,
-  role: (jwtData?.role || localStorage.getItem('role') || '').toUpperCase(),
-  name: jwtData?.username || localStorage.getItem('name') || 'Usuario',
-  zone: jwtData?.zone || localStorage.getItem('zone') || '',
+  role: (jwtData?.role || '').toUpperCase(),
+  name: jwtData?.username || 'Usuario',
+  zone: jwtData?.zone || '',
 };
 
 const whoEl = document.getElementById('who');
@@ -47,22 +46,27 @@ if (whoEl) {
 
 // ================= ROLES =================
 const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
-
 if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
-  alert('No autorizado para acceder al panel web.');
+  alert('No autorizado');
   localStorage.clear();
   window.location.href = '/login.html';
 }
 
-const CAN_CHANGE_STATUS = WEB_ROLES_ALLOWED.includes(SESSION.role);
+const CAN_CHANGE_STATUS = true;
+
+// ================= VARIABLES GLOBALES =================
+let CURRENT_FILTER = 'ALL';
+let currentIncidents = []; // ✅ Cache local para evitar parpadeos
+let map, markersLayer;
+let socket; // ✅ Variable para la conexión en tiempo real
 
 // ================= FILTRO =================
-let CURRENT_FILTER = 'ALL';
-
 document.querySelectorAll('[data-filter]').forEach(btn => {
   btn.addEventListener('click', () => {
     CURRENT_FILTER = btn.dataset.filter;
-    load();
+    // Actualizamos UI usando la cache local sin volver a pedir a la API
+    renderCards(currentIncidents);
+    updateMap(currentIncidents);
   });
 });
 
@@ -71,16 +75,20 @@ const cardsEl = document.getElementById('cards');
 const emptyEl = document.getElementById('empty');
 
 // ================= HELPERS =================
+function scoreLabel(score) {
+  if (score >= 51) return 'Grave';
+  if (score >= 31) return 'Medio';
+  return 'Leve';
+}
+
 function sevColor(label) {
   if (label === 'Grave') return 'red';
   if (label === 'Medio') return 'orange';
   return 'green';
 }
 
-function scoreLabel(score) {
-  if (score >= 51) return 'Grave';
-  if (score >= 31) return 'Medio';
-  return 'Leve';
+function fmtDate(iso) {
+  try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }
 }
 
 function fmtCoord(v) {
@@ -88,20 +96,13 @@ function fmtCoord(v) {
   return Number(v).toFixed(6);
 }
 
-function fmtDate(iso) {
-  try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }
-}
-
-// ================= NORMALIZAR ESTADO =================
+// ================= NORMALIZAR ESTADO (CLAVE) =================
 function normalizeStatus(status) {
   if (!status) return 'NUEVA';
-
-  const st = status.toLowerCase();
-
-  if (st === 'pendiente') return 'NUEVA';
-  if (st === 'en_atencion') return 'EN_ATENCION';
-  if (st === 'cerrado') return 'CERRADA';
-
+  const st = status.toString().toLowerCase();
+  if (st === 'pendiente' || st === 'nueva') return 'NUEVA';
+  if (st === 'en_atencion' || st === 'en atención') return 'EN_ATENCION';
+  if (st === 'cerrado' || st === 'cerrada') return 'CERRADA';
   return status.toUpperCase();
 }
 
@@ -114,13 +115,14 @@ function stateUI(status) {
 
 // ================= CAMBIO DE ESTADO =================
 async function changeStatus(id, nextStatus) {
-  if (!confirm(`¿Cambiar estado a "${nextStatus}"?`)) return;
+  // if (!confirm(`¿Cambiar estado a ${nextStatus}?`)) return; // Opcional: quitar confirmación para agilidad
 
   await API.request(`/incidents/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status: nextStatus.toLowerCase() })
+    body: JSON.stringify({ status: nextStatus })
   });
 
+  // Al cambiar estado, recargamos para ver el cambio
   load();
 }
 
@@ -136,49 +138,55 @@ function openModal(incident) {
 
   modalBody.innerHTML = `
     <div class="detailGrid">
-      <div class="detailBox">
-        <div class="muted small">Estado</div>
-        <b>${normalizeStatus(incident.status)}</b>
-      </div>
-      <div class="detailBox">
-        <div class="muted small">Severidad</div>
-        <b>${scoreLabel(incident.smart_score ?? 0)}</b>
-      </div>
-      <div class="detailBox">
-        <div class="muted small">GPS</div>
-        <b>${fmtCoord(incident.latitude)}</b>,
-        <b>${fmtCoord(incident.longitude)}</b>
+      <div><b>Estado:</b> ${normalizeStatus(incident.status)}</div>
+      <div><b>Severidad:</b> ${scoreLabel(incident.smart_score ?? 0)}</div>
+      <div><b>GPS:</b> ${fmtCoord(incident.latitude)}, ${fmtCoord(incident.longitude)}</div>
+      <div style="grid-column: span 2; margin-top: 10px;">
+        <b>Descripción:</b><br>
+        ${incident.descripcion || 'Sin descripción adicional.'}
       </div>
     </div>
   `;
-
   modal.classList.remove('hidden');
 }
 
-// ================= TARJETAS =================
+// ================= TARJETAS (ESTILO CORRECTO) =================
 function renderCards(data) {
   cardsEl.innerHTML = '';
   emptyEl.textContent = '';
 
-  // 🔥 SOLO ACTIVOS
-  data = data.filter(i => normalizeStatus(i.status) !== 'CERRADA');
+  // 1. Filtrado en memoria
+  let filtered = data.map(i => ({
+    ...i,
+    statusNorm: normalizeStatus(i.status)
+  }));
 
-  if (!data.length) {
-    emptyEl.textContent = 'No hay alertas activas.';
+  if (CURRENT_FILTER !== 'ALL') {
+    filtered = filtered.filter(i => i.statusNorm === CURRENT_FILTER);
+  }
+
+  // Ordenar: Las más recientes primero
+  filtered.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
+
+  if (!filtered.length) {
+    emptyEl.textContent = 'No hay alertas activas en esta categoría.';
     return;
   }
 
-  data.forEach(i => {
-    const status = normalizeStatus(i.status);
+  filtered.forEach(i => {
     const label = scoreLabel(i.smart_score ?? 0);
-    const state = stateUI(status);
+    const state = stateUI(i.statusNorm);
 
     let actionBtn = '';
     if (CAN_CHANGE_STATUS) {
-      if (status === 'NUEVA') {
-        actionBtn = `<button class="btn ok" onclick="event.stopPropagation(); changeStatus(${i.id}, 'en_atencion')">En atención</button>`;
-      } else if (status === 'EN_ATENCION') {
-        actionBtn = `<button class="btn danger" onclick="event.stopPropagation(); changeStatus(${i.id}, 'cerrado')">Cerrar</button>`;
+      if (i.statusNorm === 'NUEVA') {
+        actionBtn = `<button class="btn ok"
+          onclick="event.stopPropagation(); changeStatus('${i.id}','EN_ATENCION')">
+          Atender</button>`;
+      } else if (i.statusNorm === 'EN_ATENCION') {
+        actionBtn = `<button class="btn danger"
+          onclick="event.stopPropagation(); changeStatus('${i.id}','CERRADA')">
+          Cerrar</button>`;
       }
     }
 
@@ -195,16 +203,16 @@ function renderCards(data) {
         <span class="badge ${sevColor(label)}">${label}</span>
       </div>
 
-      <div class="muted small">
-        GPS: <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b>
+      <div class="muted small" style="margin-top:6px;">
+        📍 GPS: <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b>
       </div>
 
-      <div class="actions" style="margin-top:10px;">
-        ${actionBtn}
-      </div>
+      <div class="actions">${actionBtn}</div>
     `;
 
     card.onclick = async () => {
+      // Si ya tenemos el dato en memoria, no hace falta llamar a API, pero por seguridad lo dejamos
+      // openModal(i); // Opción rápida
       const incident = await API.request(`/incidents/${i.id}`);
       openModal(incident);
     };
@@ -213,29 +221,12 @@ function renderCards(data) {
   });
 }
 
-// ================= CARGA =================
-async function load() {
-  let data = await API.request('/incidents');
-
-  if (CURRENT_FILTER !== 'ALL') {
-    data = data.filter(i => normalizeStatus(i.status) === CURRENT_FILTER);
-  }
-
-  renderCards(data);
-  updateMap(data);
-}
-
-load();
-setInterval(load, 4000);
-
-// ================= MAPA =================
-let map;
-let markersLayer;
-
+// ================= MAPA (LEAFLET) =================
 function initMap() {
   if (map) return;
 
-  map = L.map('map').setView([-9.19, -75.015], 6);
+  // Centro inicial (Perú aprox)
+  map = L.map('map').setView([-9.19, -75.015], 5);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap'
@@ -244,32 +235,101 @@ function initMap() {
   markersLayer = L.layerGroup().addTo(map);
 }
 
-function sevColorMap(score) {
-  if (score >= 51) return 'red';
-  if (score >= 31) return 'orange';
-  return 'green';
-}
-
 function updateMap(incidents) {
   if (!map) initMap();
-
   markersLayer.clearLayers();
 
   incidents.forEach(i => {
     if (!i.latitude || !i.longitude) return;
-    if (normalizeStatus(i.status) === 'CERRADA') return;
+    if (normalizeStatus(i.status) === 'CERRADA') return; // No mostramos cerrados en mapa
 
-    const color = sevColorMap(i.smart_score ?? 0);
+    const score = i.smart_score ?? 0;
+    const color = score >= 51 ? 'red' : score >= 31 ? 'orange' : 'green';
 
-    L.circleMarker([i.latitude, i.longitude], {
-      radius: 8,
-      color,
+    // Crear marcador circular
+    const marker = L.circleMarker([i.latitude, i.longitude], {
+      radius: 10,
+      color: 'white',
+      weight: 2,
       fillColor: color,
-      fillOpacity: 0.85
-    }).bindPopup(`
-      <b>${(i.tipo || '').replaceAll('_',' ')}</b><br>
-      Severidad: ${scoreLabel(i.smart_score ?? 0)}<br>
-      Estado: ${normalizeStatus(i.status)}
-    `).addTo(markersLayer);
+      fillOpacity: 0.9
+    });
+
+    // Popup simple
+    marker.bindPopup(`
+      <b>${(i.tipo || '').replaceAll('_', ' ')}</b><br>
+      Severidad: ${scoreLabel(score)}<br>
+      ${fmtDate(i.received_at)}
+    `);
+
+    marker.addTo(markersLayer);
   });
 }
+
+// ================= SOCKET.IO & TIEMPO REAL =================
+function initSocket() {
+  // Aseguramos que io existe (cargado por CDN en HTML)
+  if (typeof io === 'undefined') {
+    console.error("Socket.io no cargado");
+    return;
+  }
+
+  socket = io(); // Conecta automáticamente al host actual
+
+  // 1. Escuchar nueva alerta
+  socket.on('nueva_alerta', (newIncident) => {
+    console.log("⚡ SOCKET: Nueva alerta recibida", newIncident);
+
+    // A. Reproducir sonido (si existe el elemento)
+    const audio = document.getElementById('alertSound');
+    if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(e => console.log("Audio autoplay bloqueado"));
+    }
+
+    // B. Agregar a la lista local inmediatamente
+    currentIncidents.push(newIncident);
+
+    // C. Actualizar UI
+    renderCards(currentIncidents);
+    updateMap(currentIncidents);
+
+    // D. ✅ INNOVACIÓN: Volar hacia el incidente en el mapa
+    if (map && newIncident.latitude && newIncident.longitude) {
+      map.flyTo([newIncident.latitude, newIncident.longitude], 13, {
+        duration: 2.0 // Animación suave de 2 segundos
+      });
+
+      // Abrir popup automáticamente
+      L.popup()
+        .setLatLng([newIncident.latitude, newIncident.longitude])
+        .setContent(`<div style="text-align:center">🚨 <b>¡NUEVA ALERTA!</b><br>${newIncident.tipo}</div>`)
+        .openOn(map);
+    }
+  });
+}
+
+// ================= CARGA DE DATOS =================
+async function load() {
+  try {
+    const data = await API.request('/incidents');
+    currentIncidents = data; // Guardamos en global
+    renderCards(currentIncidents);
+    updateMap(currentIncidents);
+  } catch (e) {
+    console.error("Error cargando incidentes", e);
+  }
+}
+
+// ================= INICIALIZACIÓN =================
+// 1. Cargar datos iniciales
+load();
+
+// 2. Iniciar mapa vacío (para que se vea mientras carga)
+initMap();
+
+// 3. Iniciar escuchas en tiempo real
+initSocket();
+
+// 4. Polling de respaldo (cada 10s por si acaso falla el socket)
+setInterval(load, 10000);

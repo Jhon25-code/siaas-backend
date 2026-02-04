@@ -4,10 +4,24 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
+// ✅ NUEVO: Importar HTTP y Socket.io
+const http = require('http');
+const { Server } = require("socket.io");
 
 const auth = require('./middleware/auth');
 
 const app = express();
+
+// ✅ NUEVO: Crear servidor HTTP envolviendo a Express
+const server = http.createServer(app);
+
+// ✅ NUEVO: Configurar Socket.io con CORS permisivo
+const io = new Server(server, {
+  cors: {
+    origin: "*", // Permite conexiones desde cualquier frontend (Render/Localhost)
+    methods: ["GET", "POST"]
+  }
+});
 
 /**
  * Render asigna el puerto dinámicamente
@@ -170,6 +184,10 @@ app.post('/incidents',
     incidents.push(incident);
     saveIncidents();
 
+    // ✅ NUEVO: Emitir evento en tiempo real a todos los clientes conectados
+    console.log('📢 Emitiendo alerta socket:', incident.tipo);
+    io.emit('nueva_alerta', incident);
+
     res.json({ ok: true, incident });
   }
 );
@@ -198,6 +216,10 @@ app.patch('/incidents/:id/status',
 
     inc.status = req.body.status || inc.status;
     saveIncidents();
+
+    // Opcional: También podrías emitir cuando cambia el estado
+    // io.emit('estado_actualizado', inc);
+
     res.json({ ok: true, incident: inc });
   }
 );
@@ -210,12 +232,12 @@ app.get('/health', (req, res) => {
 });
 
 // =====================
-// START SERVER
+// START SERVER (MODIFICADO)
 // =====================
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor SIAAS activo:
+// ⚠️ IMPORTANTE: Usar server.listen en lugar de app.listen para que funcionen los sockets
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor SIAAS (con Sockets ⚡) activo:
   → http://localhost:${PORT}
   → https://siaas-backend.onrender.com
   `);
 });
-
