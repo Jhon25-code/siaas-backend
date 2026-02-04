@@ -57,7 +57,7 @@
 <script>
     const token = localStorage.getItem('token');
     if (!token) {
-      window.location.href = '/login.html';
+      window.location.href = 'login.html';
     }
 </script>
 
@@ -159,79 +159,11 @@
     </div>
 </div>
 
-<script src="js/api.js"></script>
-<script src="js/dashboard.js"></script>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
 
-<script>
-    // 1. Conectar al backend (automáticamente detecta el host)
-    const socket = io();
-
-    const statusDiv = document.getElementById('connectionStatus');
-    const toastContainer = document.getElementById('toastContainer');
-    const audio = document.getElementById('alertSound');
-
-    // Evento: Conectado
-    socket.on('connect', () => {
-        console.log("🟢 WebSocket Conectado ID:", socket.id);
-        statusDiv.innerHTML = '🟢 En línea (Tiempo Real)';
-        statusDiv.style.color = '#2e7d32'; // Verde
-    });
-
-    // Evento: Desconectado
-    socket.on('disconnect', () => {
-        console.log("🔴 WebSocket Desconectado");
-        statusDiv.innerHTML = '🔴 Sin conexión real';
-        statusDiv.style.color = '#d32f2f'; // Rojo
-    });
-
-    // 🔥 Evento: NUEVA ALERTA (Lo que emite tu backend)
-    socket.on('nueva_alerta', (data) => {
-        console.log("🚨 ALERTA RECIBIDA:", data);
-
-        // A. Reproducir sonido (Si el navegador lo permite)
-        try {
-            audio.currentTime = 0;
-            audio.play().catch(e => console.log("Audio bloqueado por navegador hasta interacción user"));
-        } catch (e) {}
-
-        // B. Mostrar Notificación Visual (Toast)
-        showToast(data);
-
-        // C. Opcional: Recargar datos automáticamente tras 2 segundos
-        // para que aparezca en el mapa/tabla sin dar F5
-        setTimeout(() => {
-           if(typeof loadIncidents === 'function') {
-               loadIncidents(); // Si existe en dashboard.js
-           } else {
-               // Fallback: simular clic en actualizar si no tenemos acceso a la función
-               // location.reload(); // Un poco agresivo, mejor solo avisar
-           }
-        }, 1000);
-    });
-
-    function showToast(data) {
-        const toast = document.createElement('div');
-        toast.className = 'toast';
-        toast.innerHTML = `
-            <div class="toast-icon">🚨</div>
-            <div class="toast-content">
-                <strong>¡NUEVO INCIDENTE!</strong>
-                <p>${data.tipo} - ${data.status}</p>
-            </div>
-        `;
-
-        toastContainer.appendChild(toast);
-
-        // Remover después de 5 segundos
-        setTimeout(() => {
-            toast.remove();
-        }, 5000);
-    }
-</script>
+<script src="js/api.js"></script>
+<script src="js/dashboard.js"></script>
 
 </body>
 </html>
