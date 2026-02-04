@@ -266,6 +266,29 @@ function updateMap(incidents) {
   });
 }
 
+// ================= HELPERS UI (TOAST) =================
+function showToast(data) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `
+        <div class="toast-icon">🚨</div>
+        <div class="toast-content">
+            <strong>¡NUEVO INCIDENTE!</strong>
+            <p>${data.tipo} - ${normalizeStatus(data.status)}</p>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Remover después de 5 segundos
+    setTimeout(() => {
+        toast.remove();
+    }, 5000);
+}
+
 // ================= SOCKET.IO & TIEMPO REAL =================
 function initSocket() {
   // Aseguramos que io existe (cargado por CDN en HTML)
@@ -275,29 +298,53 @@ function initSocket() {
   }
 
   socket = io(); // Conecta automáticamente al host actual
+  const statusDiv = document.getElementById('connectionStatus');
 
-  // 1. Escuchar nueva alerta
+  // ✅ EVENTO: Conexión Exitosa
+  socket.on('connect', () => {
+    console.log("🟢 WebSocket Conectado ID:", socket.id);
+    if (statusDiv) {
+        statusDiv.innerHTML = '🟢 En línea (Tiempo Real)';
+        statusDiv.style.color = '#1e7e34'; // Verde Oscuro
+        statusDiv.style.backgroundColor = '#e6f6ec'; // Verde Claro
+    }
+  });
+
+  // ✅ EVENTO: Desconexión
+  socket.on('disconnect', () => {
+    console.log("🔴 WebSocket Desconectado");
+    if (statusDiv) {
+        statusDiv.innerHTML = '🔴 Sin conexión';
+        statusDiv.style.color = '#d32f2f'; // Rojo
+        statusDiv.style.backgroundColor = '#fde8e8'; // Rojo Claro
+    }
+  });
+
+  // ✅ EVENTO: NUEVA ALERTA
   socket.on('nueva_alerta', (newIncident) => {
     console.log("⚡ SOCKET: Nueva alerta recibida", newIncident);
 
-    // A. Reproducir sonido (si existe el elemento)
+    // A. Reproducir sonido
     const audio = document.getElementById('alertSound');
     if (audio) {
         audio.currentTime = 0;
         audio.play().catch(e => console.log("Audio autoplay bloqueado"));
     }
 
-    // B. Agregar a la lista local inmediatamente
+    // B. Mostrar Notificación Visual (Toast)
+    showToast(newIncident);
+
+    // C. Agregar a la lista local inmediatamente
     currentIncidents.push(newIncident);
 
-    // C. Actualizar UI
+    // D. Actualizar UI
     renderCards(currentIncidents);
     updateMap(currentIncidents);
 
-    // D. ✅ INNOVACIÓN: Volar hacia el incidente en el mapa
+    // E. INNOVACIÓN: Volar hacia el incidente en el mapa
     if (map && newIncident.latitude && newIncident.longitude) {
       map.flyTo([newIncident.latitude, newIncident.longitude], 13, {
-        duration: 2.0 // Animación suave de 2 segundos
+        duration: 2.0 // Animación suave
       });
 
       // Abrir popup automáticamente
