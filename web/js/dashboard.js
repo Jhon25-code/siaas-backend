@@ -410,20 +410,40 @@ if (btnExport) {
 }
 
 // ==========================================
-// 11. INICIALIZACIÓN
+// 11. INICIALIZACIÓN Y CARGA SEGURA
 // ==========================================
 async function load() {
   try {
     const token = localStorage.getItem('token');
+    if (!token) return; // No intentar si no hay token
+
     const res = await fetch('/incidents', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
+
+    if (!res.ok) {
+        console.warn("⚠️ Error cargando incidentes:", res.status);
+        if (res.status === 401) {
+            // Si el token venció, forzar salida
+            localStorage.clear();
+            window.location.href = '/login.html';
+        }
+        return;
+    }
+
     const data = await res.json();
-    currentIncidents = data;
-    renderCards(currentIncidents);
-    updateMap(currentIncidents);
+
+    // VALIDACIÓN CRÍTICA: Asegurar que es una lista (Array)
+    if (Array.isArray(data)) {
+        currentIncidents = data;
+        renderCards(currentIncidents);
+        updateMap(currentIncidents);
+    } else {
+        console.error("❌ Formato de datos incorrecto:", data);
+    }
+
   } catch (e) {
-    console.error("Error cargando incidentes", e);
+    console.error("❌ Error de red al cargar:", e);
   }
 }
 
@@ -431,5 +451,6 @@ async function load() {
 load();
 initMap();
 initSocket();
-// Polling de seguridad cada 15s
-setInterval(load, 15000);
+
+// Polling cada 5 segundos para asegurar sincronización
+setInterval(load, 5000);

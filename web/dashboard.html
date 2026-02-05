@@ -13,6 +13,7 @@
     />
 
     <style>
+        /* Estilos para las Notificaciones (Toasts) */
         .toast-container {
             position: fixed;
             top: 20px;
@@ -69,9 +70,9 @@
     <aside class="sidebar">
         <div class="logo"><b>SIAAS</b></div>
 
-        <div class="who" id="who"></div>
+        <div class="who" id="who">Usuario</div>
 
-        <div class="connectionStatus online" id="connectionStatus">
+        <div class="connectionStatus" id="connectionStatus" style="background:#fff3cd; color:#856404;">
             🟡 Conectando...
         </div>
 
@@ -96,7 +97,7 @@
             <h1 id="title">Alertas registradas</h1>
 
             <div class="sectionActions">
-                <button class="btn">Vista tabla</button>
+                <button class="btn" style="display:none;">Vista tabla</button>
                 <button class="btn primary" onclick="location.reload()">Actualizar</button>
             </div>
         </div>
@@ -114,13 +115,14 @@
 
         <div class="actions" style="margin-bottom:12px;">
             <button class="btn" data-filter="ALL">Todos</button>
-            <button class="btn" data-filter="NUEVA">Abiertos</button>
+            <button class="btn" data-filter="ABIERTO">Abiertos</button>
             <button class="btn" data-filter="EN_ATENCION">En atención</button>
-            <button class="btn" data-filter="CERRADA">Cerrados</button>
+            <button class="btn" data-filter="CERRADO">Cerrados</button>
         </div>
 
         <div id="cards" class="cardsGrid"></div>
-        <p class="muted" id="empty"></p>
+
+        <div id="empty" style="text-align:center; color:#666; margin-top:20px; font-style:italic;"></div>
 
         <div id="usersView" style="display:none; margin-top:18px;">
             <h2>Gestión de usuarios</h2>
@@ -147,14 +149,14 @@
     <div class="modalCard">
         <div class="modalHeader">
             <div>
-                <div id="modalTitle" class="modalTitle"></div>
+                <div id="modalTitle" class="modalTitle">Detalle</div>
                 <div id="modalSub" class="muted small"></div>
             </div>
-            <button class="iconBtn" onclick="document.getElementById('modal').classList.add('hidden')">✕</button>
+            <button class="iconBtn" id="closeModalX" onclick="document.getElementById('modal').classList.add('hidden')">✕</button>
         </div>
         <div id="modalBody" class="modalBody"></div>
         <div class="modalFooter">
-            <button class="btn" onclick="document.getElementById('modal').classList.add('hidden')">Cerrar</button>
+            <button class="btn" id="closeModalBtn" onclick="document.getElementById('modal').classList.add('hidden')">Cerrar</button>
         </div>
     </div>
 </div>
