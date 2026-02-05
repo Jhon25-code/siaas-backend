@@ -65,7 +65,7 @@ let socket;
 document.querySelectorAll('[data-filter]').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
-    // btn.classList.add('active');
+    // btn.classList.add('active'); // Descomenta si usas clase active en CSS
     CURRENT_FILTER = btn.dataset.filter;
     renderCards(currentIncidents);
     updateMap(currentIncidents);
@@ -99,20 +99,19 @@ function fmtCoord(v) {
   return Number(v).toFixed(6);
 }
 
-// 🔥 AQUÍ ESTÁ LA CLAVE DE LOS ESTADOS 🔥
+// 🔥 NORMALIZACIÓN DE ESTADOS
 function normalizeStatus(status) {
   if (!status) return 'NUEVA';
   const st = status.toString().toLowerCase();
 
-  // Mapeo estricto a lo que pide tu HU
-  if (st === 'nueva' || st === 'pendiente' || st === 'abierto') return 'ABIERTO'; // Antes NUEVA
+  // Mapeo estricto
+  if (st === 'nueva' || st === 'pendiente' || st === 'abierto') return 'ABIERTO';
   if (st === 'en_atencion' || st === 'en atención') return 'EN_ATENCION';
-  if (st === 'cerrada' || st === 'cerrado') return 'CERRADO'; // Antes CERRADA
+  if (st === 'cerrada' || st === 'cerrado') return 'CERRADO';
 
-  return 'ABIERTO'; // Default
+  return 'ABIERTO';
 }
 
-// Etiquetas visuales (Badges)
 function stateUI(statusNorm) {
   if (statusNorm === 'EN_ATENCION') return { label: 'En atención', cls: 'state-attention' };
   if (statusNorm === 'CERRADO') return { label: 'Cerrado', cls: 'state-closed' };
@@ -170,7 +169,6 @@ if (closeModalX) closeModalX.onclick = closeModal;
 window.onclick = (e) => { if (e.target == modal) closeModal(); };
 
 function openModal(incident) {
-  // Aseguramos que el estado se vea bonito en el modal también
   const stUI = stateUI(normalizeStatus(incident.status));
 
   modalTitle.textContent = `Detalle: ${(incident.tipo || '').replaceAll('_', ' ')}`;
@@ -193,7 +191,7 @@ function openModal(incident) {
 }
 
 // ==========================================
-// 7. RENDERIZADO DE TARJETAS (CORREGIDO)
+// 7. RENDERIZADO DE TARJETAS
 // ==========================================
 function renderCards(data) {
   cardsEl.innerHTML = '';
@@ -205,9 +203,8 @@ function renderCards(data) {
   }));
 
   if (CURRENT_FILTER !== 'ALL') {
-    // Ajustamos filtro para coincidir con los nuevos nombres
     let filterKey = CURRENT_FILTER;
-    if (CURRENT_FILTER === 'NUEVA') filterKey = 'ABIERTO'; // Compatibilidad
+    if (CURRENT_FILTER === 'NUEVA') filterKey = 'ABIERTO';
     filtered = filtered.filter(i => i.statusNorm === filterKey);
   }
 
@@ -222,22 +219,18 @@ function renderCards(data) {
     const label = scoreLabel(i.smart_score ?? 0);
     const state = stateUI(i.statusNorm);
 
-    // --- LÓGICA DE BOTONES Y TEXTO ---
     let actionArea = '';
 
     if (CAN_CHANGE_STATUS) {
       if (i.statusNorm === 'ABIERTO') {
-        // Estado 1: Botón Verde
         actionArea = `<button class="btn ok"
           onclick="event.stopPropagation(); changeStatus('${i.id}','EN_ATENCION', this)">
           Atender</button>`;
       } else if (i.statusNorm === 'EN_ATENCION') {
-        // Estado 2: Botón Amarillo
         actionArea = `<button class="btn danger"
           onclick="event.stopPropagation(); changeStatus('${i.id}','CERRADO', this)">
           Finalizar</button>`;
       } else {
-         // Estado 3: Texto final (CORREGIDO: Ahora dice "Cerrado")
          actionArea = `<span class="badge-closed">Cerrado</span>`;
       }
     }
@@ -268,13 +261,175 @@ function renderCards(data) {
   });
 }
 
-// ... (El resto del código Mapa, Socket, Exportar sigue igual, omitido por brevedad pero inclúyelo) ...
 // ==========================================
-// 8. MAPA, 9. SOCKET, 10. EXPORTAR (MANTENER IGUAL)
+// 8. MAPA (LEAFLET)
 // ==========================================
-function initMap() { if(!map) { map = L.map('map').setView([-9.19, -75.015], 5); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map); markersLayer = L.layerGroup().addTo(map); }}
-function updateMap(incidents) { if(!map) initMap(); markersLayer.clearLayers(); incidents.forEach(i => { if(!i.latitude) return; if(normalizeStatus(i.status)==='CERRADO') return; const sc=i.smart_score??0; const col=sc>=51?'red':sc>=31?'orange':'green'; L.circleMarker([i.latitude,i.longitude],{radius:10,color:'white',fillColor:col,fillOpacity:0.9}).bindPopup(i.tipo).addTo(markersLayer); }); }
-function initSocket() { if(typeof io==='undefined') return; socket=io(); socket.on('nueva_alerta', d=>{ currentIncidents.unshift(d); renderCards(currentIncidents); updateMap(currentIncidents); }); socket.on('cambio_estado', ()=>{ load(); }); }
-const btnExport = document.getElementById('btnExportCsv'); if(btnExport) btnExport.onclick = () => { /* Tu lógica de exportar existente */ };
-async function load() { try { const t=localStorage.getItem('token'); const r=await fetch('/incidents',{headers:{'Authorization':`Bearer ${t}`}}); currentIncidents=await r.json(); renderCards(currentIncidents); updateMap(currentIncidents); } catch(e){} }
-load(); initMap(); initSocket(); setInterval(load, 15000);
+function initMap() {
+  if (map) return;
+  map = L.map('map').setView([-9.19, -75.015], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap'
+  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+}
+
+function updateMap(incidents) {
+  if (!map) initMap();
+  markersLayer.clearLayers();
+
+  incidents.forEach(i => {
+    if (!i.latitude || !i.longitude) return;
+    if (normalizeStatus(i.status) === 'CERRADO') return;
+
+    const sc = i.smart_score ?? 0;
+    const col = sc >= 51 ? 'red' : sc >= 31 ? 'orange' : 'green';
+
+    L.circleMarker([i.latitude, i.longitude], {
+      radius: 10,
+      color: 'white',
+      fillColor: col,
+      fillOpacity: 0.9
+    }).bindPopup(i.tipo).addTo(markersLayer);
+  });
+}
+
+// ==========================================
+// 9. SOCKET.IO (CONEXIÓN ROBUSTA)
+// ==========================================
+function showToast(data) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `
+      <div class="toast-icon">🚨</div>
+      <div class="toast-content">
+          <strong>¡NUEVA ALERTA!</strong>
+          <p>${data.tipo}</p>
+      </div>
+  `;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 5000);
+}
+
+function initSocket() {
+  if (typeof io === 'undefined') {
+    console.error("Socket.io no cargado");
+    return;
+  }
+
+  // 🔥 FIX: Forzar conexión a la URL real para evitar "Conectando..." infinito
+  socket = io('https://siaas-backend.onrender.com', {
+    transports: ['websocket', 'polling'],
+    reconnection: true
+  });
+
+  const statusDiv = document.getElementById('connectionStatus');
+
+  socket.on('connect', () => {
+    console.log("🟢 Conectado a Socket.io");
+    if (statusDiv) {
+      statusDiv.innerHTML = '🟢 En línea (Tiempo Real)';
+      statusDiv.style.color = '#1e7e34';
+      statusDiv.style.backgroundColor = '#d4edda';
+    }
+  });
+
+  socket.on('disconnect', () => {
+    if (statusDiv) {
+      statusDiv.innerHTML = '🔴 Desconectado';
+      statusDiv.style.color = '#721c24';
+      statusDiv.style.backgroundColor = '#f8d7da';
+    }
+  });
+
+  socket.on('nueva_alerta', (newIncident) => {
+    // Sonido
+    const audio = document.getElementById('alertSound');
+    if (audio) {
+      audio.currentTime = 0;
+      audio.play().catch(e => console.log("Audio autoplay bloqueado"));
+    }
+
+    showToast(newIncident);
+    currentIncidents.unshift(newIncident);
+    renderCards(currentIncidents);
+    updateMap(currentIncidents);
+  });
+
+  socket.on('cambio_estado', () => {
+    load(); // Recargar lista si otro usuario cambia estado
+  });
+}
+
+// ==========================================
+// 10. EXPORTAR A CSV
+// ==========================================
+const btnExport = document.getElementById('btnExportCsv');
+if (btnExport) {
+  btnExport.onclick = () => {
+    if (!currentIncidents || currentIncidents.length === 0) {
+      alert("No hay incidentes para exportar.");
+      return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += "ID;FECHA;TIPO;ESTADO;SEVERIDAD;LATITUD;LONGITUD;DESCRIPCION\n";
+
+    currentIncidents.forEach(item => {
+      const fecha = new Date(item.received_at).toLocaleString('es-PE');
+      const tipo = (item.tipo || '').toUpperCase();
+      const score = item.smart_score ?? 0;
+      const severidad = score >= 51 ? 'GRAVE' : score >= 31 ? 'MEDIO' : 'LEVE';
+      const desc = (item.descripcion || '').replace(/(\r\n|\n|\r)/gm, " ").replace(/;/g, ",");
+
+      const row = [
+        item.id,
+        fecha,
+        tipo,
+        normalizeStatus(item.status),
+        severidad,
+        item.latitude || 0,
+        item.longitude || 0,
+        desc
+      ].join(";");
+
+      csvContent += row + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    const fileName = `reporte_siaas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+}
+
+// ==========================================
+// 11. INICIALIZACIÓN
+// ==========================================
+async function load() {
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch('/incidents', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    currentIncidents = data;
+    renderCards(currentIncidents);
+    updateMap(currentIncidents);
+  } catch (e) {
+    console.error("Error cargando incidentes", e);
+  }
+}
+
+// Arranque
+load();
+initMap();
+initSocket();
+// Polling de seguridad cada 15s
+setInterval(load, 15000);
