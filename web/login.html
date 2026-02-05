@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>SIAAS | Acceso</title>
 
-    <!-- Evitar cache del login -->
     <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -15,26 +14,25 @@
 
 <body class="loginPage">
 
-<!-- 🔐 Si ya hay sesión válida, ir al dashboard -->
 <script>
     try {
       const token = localStorage.getItem('token');
+      // Verificación básica de que el token existe y parece un JWT
       if (token && token.split('.').length === 3) {
         window.location.href = '/dashboard.html';
+      } else {
+        localStorage.clear(); // Si es inválido, limpiar
       }
     } catch (e) {
       localStorage.clear();
     }
 </script>
 
-<!-- Lado izquierdo (Hero / Imagen) -->
 <section class="loginHero" aria-hidden="true"></section>
 
-<!-- Lado derecho (Login centrado) -->
 <main class="loginWrap">
     <section class="loginCard" aria-label="Acceso al sistema">
 
-        <!-- Marca -->
         <header class="brand">
             <img
                     class="brandLogo"
@@ -50,7 +48,6 @@
 
         <div class="divider"></div>
 
-        <!-- Formulario -->
         <form
                 id="loginForm"
                 autocomplete="off"
@@ -72,19 +69,17 @@
                     id="password"
                     name="password"
                     type="password"
-                    placeholder="123456"
+                    placeholder="Siaas2026"
                     required
             />
 
-            <button class="btnPrimary" type="submit">
+            <button class="btnPrimary" type="submit" id="btnSubmit">
                 Ingresar
             </button>
 
-            <!-- Mensaje de error -->
-            <p id="msg" class="error" aria-live="polite"></p>
+            <p id="msg" class="error" aria-live="polite" style="color: #d32f2f; margin-top: 1rem; font-weight: 500;"></p>
         </form>
 
-        <!-- Footer -->
         <footer class="loginFooter">
             © <span id="year"></span> Agroindustrial · SIAAS
         </footer>
@@ -96,8 +91,62 @@
     document.getElementById('year').textContent = new Date().getFullYear();
 </script>
 
-<!-- Lógica de autenticación -->
-<script src="/js/auth.js"></script>
+<script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault(); // Evitar recarga de página
+
+        const msgElement = document.getElementById('msg');
+        const btnSubmit = document.getElementById('btnSubmit');
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+
+        // 1. Estado de carga visual
+        msgElement.textContent = '';
+        btnSubmit.disabled = true;
+        btnSubmit.textContent = 'Verificando...';
+        btnSubmit.style.opacity = '0.7';
+
+        try {
+            // 2. Limpieza preventiva de localStorage
+            localStorage.clear();
+
+            // 3. Petición al Backend
+            const response = await fetch('/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Error de credenciales');
+            }
+
+            // 4. ✅ ÉXITO: Guardar el token correctamente
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('role', data.role);
+            localStorage.setItem('name', data.name);
+            localStorage.setItem('zone', data.zone || '');
+
+            console.log("Login exitoso. Redirigiendo...");
+
+            // 5. Redirección forzada
+            window.location.replace('/dashboard.html');
+
+        } catch (error) {
+            console.error("Error Login:", error);
+
+            // Mostrar error al usuario
+            msgElement.textContent = "❌ " + error.message;
+
+            // Restaurar botón
+            btnSubmit.disabled = false;
+            btnSubmit.textContent = 'Ingresar';
+            btnSubmit.style.opacity = '1';
+        }
+    });
+</script>
 
 </body>
 </html>
