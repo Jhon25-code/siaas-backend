@@ -62,28 +62,34 @@ app.get('/login.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'login.html
 app.get('/dashboard.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'dashboard.html')));
 
 // ---------------------------------------------------------
-// 👤 USUARIOS (Hardcoded para Demo)
+// 👤 USUARIOS (CONTRASEÑA ACTUALIZADA: Siaas2026)
 // ---------------------------------------------------------
+// Usamos una contraseña más fuerte para evitar bloqueo de Chrome
+const PASSWORD_HASH = bcrypt.hashSync('Siaas2026', 10);
+
 const users = [
-  { id: 1, username: 'topico', passwordHash: bcrypt.hashSync('123456', 10), role: 'TOPICO', name: 'Tópico Central' },
-  { id: 2, username: 'admin', passwordHash: bcrypt.hashSync('123456', 10), role: 'ADMIN', name: 'Administrador' },
-  { id: 3, username: 'supervisor', passwordHash: bcrypt.hashSync('123456', 10), role: 'SUPERVISOR', name: 'Supervisor Zona 1' },
-  { id: 4, username: 'trabajador', passwordHash: bcrypt.hashSync('123456', 10), role: 'TRABAJADOR', name: 'Juan Perez' }
+  { id: 1, username: 'topico', passwordHash: PASSWORD_HASH, role: 'TOPICO', name: 'Tópico Central' },
+  { id: 2, username: 'admin', passwordHash: PASSWORD_HASH, role: 'ADMIN', name: 'Administrador' },
+  { id: 3, username: 'supervisor', passwordHash: PASSWORD_HASH, role: 'SUPERVISOR', name: 'Supervisor Zona 1' },
+  { id: 4, username: 'trabajador', passwordHash: PASSWORD_HASH, role: 'TRABAJADOR', name: 'Juan Perez' }
 ];
 
 // Login
 app.post('/auth/login', (req, res) => {
   const { username, password } = req.body;
   const user = users.find(u => u.username === username);
+
+  // Verificación de contraseña
   if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
     return res.status(401).json({ message: 'Credenciales incorrectas' });
   }
+
   const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET);
   res.json({ token, role: user.role, name: user.name });
 });
 
 // =========================================================
-// 🚨 API INCIDENTES (AQUÍ ESTÁ LA SOLUCIÓN DE SEVERIDAD)
+// 🚨 API INCIDENTES (LÓGICA DE SEVERIDAD + ESTADOS)
 // =========================================================
 app.post('/incidents', auth(['TRABAJADOR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   const data = req.body;
@@ -95,7 +101,6 @@ app.post('/incidents', auth(['TRABAJADOR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (r
   let score = 10; // Default: Verde (Leve)
 
   // Juntamos todos los campos posibles en una sola cadena de texto para buscar palabras clave
-  // El móvil podría enviarlo como 'severidad', 'severity', 'priority' o incluso 'prioridad'
   const analisis = JSON.stringify(data).toUpperCase();
 
   if (analisis.includes('GRAVE') || analisis.includes('ALTA') || analisis.includes('HIGH') || analisis.includes('CRITICA')) {
@@ -181,4 +186,3 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SERVIDOR SIAAS ACTIVO EN PUERTO ${PORT}`);
   console.log(`📡 Esperando conexiones...`);
 });
-// MI CAMBIO FINAL DE PRUEBA 123
