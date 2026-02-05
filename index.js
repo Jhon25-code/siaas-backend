@@ -3,116 +3,67 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
-const fs = require('fs');
-// ✅ NUEVO: Importar HTTP y Socket.io
+// ✅ IMPORTANTE: SQLite en lugar de 'fs'
+const sqlite3 = require('sqlite3').verbose();
 const http = require('http');
 const { Server } = require("socket.io");
 
 const auth = require('./middleware/auth');
 
 const app = express();
-
-// ✅ NUEVO: Crear servidor HTTP envolviendo a Express
 const server = http.createServer(app);
 
-// ✅ NUEVO: Configurar Socket.io con CORS permisivo
+// Configuración de Socket.io
 const io = new Server(server, {
-  cors: {
-    origin: "*", // Permite conexiones desde cualquier frontend (Render/Localhost)
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-/**
- * Render asigna el puerto dinámicamente
- */
 const PORT = process.env.PORT || 3000;
-
-// En Render → Settings → Environment
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
-// ==================
-// Middleware base
-// ==================
 app.use(cors());
 app.use(express.json());
 
-/**
- * 🚨 NO CACHE para HTML (Render)
- */
-app.use((req, res, next) => {
-  if (req.path.endsWith('.html')) {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    res.setHeader('Surrogate-Control', 'no-store');
-  }
-  next();
+// ==========================================
+// 📦 BASE DE DATOS SQLITE (Reemplaza al JSON)
+// ==========================================
+// Esto creará un archivo 'siaas.db' automáticamente
+const db = new sqlite3.Database('./siaas.db', (err) => {
+  if (err) console.error('❌ Error al abrir BD:', err.message);
+  else console.log('🗄️ Base de datos SQLite conectada');
 });
 
-// =====================================================
-// ✅ SERVIR FRONTEND (web/) — FIX DEFINITIVO
-// =====================================================
-const WEB_DIR = path.join(__dirname, 'web');
+// Crear tabla si no existe (Inicialización automática)
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS incidents (
+    id TEXT PRIMARY KEY,
+    tipo TEXT,
+    descripcion TEXT,
+    latitude REAL,
+    longitude REAL,
+    received_at TEXT,
+    status TEXT,
+    smart_score INTEGER,
+    zone TEXT
+  )`);
+});
 
-// 🔥 IMPORTANTE: estáticos explícitos
+// ==========================================
+// SERVIR FRONTEND
+// ==========================================
+const WEB_DIR = path.join(__dirname, 'web');
 app.use('/css', express.static(path.join(WEB_DIR, 'css')));
 app.use('/js', express.static(path.join(WEB_DIR, 'js')));
 app.use('/images', express.static(path.join(WEB_DIR, 'images')));
-
-// 🔥 fallback general
 app.use(express.static(WEB_DIR));
 
-// Rutas HTML explícitas
-app.get('/login.html', (req, res) => {
-  res.sendFile(path.join(WEB_DIR, 'login.html'));
-});
+app.get('/login.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'login.html')));
+app.get('/dashboard.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'dashboard.html')));
+app.get('/', (req, res) => res.redirect('/login.html'));
 
-app.get('/dashboard.html', (req, res) => {
-  res.sendFile(path.join(WEB_DIR, 'dashboard.html'));
-});
-
-app.get('/', (req, res) => {
-  res.redirect('/login.html');
-});
-
-// =========================
-// 📦 PERSISTENCIA SIMPLE
-// =========================
-const DATA_FILE = path.join(__dirname, 'incidents.json');
-
-function loadIncidents() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-    }
-  } catch (e) {
-    console.error('❌ Error cargando incidents.json', e);
-  }
-  return [];
-}
-
-function saveIncidents() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify(incidents, null, 2));
-  } catch (e) {
-    console.error('❌ Error guardando incidents.json', e);
-  }
-}
-
-// =========================
-// Base de datos (persistente)
-// =========================
-let incidents = loadIncidents();
-
-// ==================
-// Roles oficiales
-// ==================
-const ROLES = ['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN'];
-
-// ==================
-// Usuarios DEMO
-// ==================
+// ==========================================
+// USUARIOS DEMO (Hardcoded para prototipo)
+// ==========================================
 const users = [
   { id: 1, username: 'topico', passwordHash: bcrypt.hashSync('123456', 10), role: 'TOPICO', zone: 'ZONA_1', name: 'Tópico' },
   { id: 2, username: 'admin', passwordHash: bcrypt.hashSync('123456', 10), role: 'ADMIN', zone: null, name: 'Admin' },
@@ -121,9 +72,6 @@ const users = [
   { id: 5, username: 'auxiliar', passwordHash: bcrypt.hashSync('123456', 10), role: 'AUXILIAR', zone: 'ZONA_1', name: 'Auxiliar' },
 ];
 
-// ==================
-// UTILIDADES
-// ==================
 function generateId() {
   return String(Date.now()) + Math.random().toString(16).slice(2);
 }
@@ -141,103 +89,101 @@ app.post('/auth/login', (req, res) => {
   }
 
   const token = jwt.sign(
-    {
-      id: user.id,
-      role: user.role,
-      name: user.name,
-      zone: user.zone,
-      username: user.username
-    },
+    { id: user.id, role: user.role, name: user.name, zone: user.zone, username: user.username },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
 
-  res.json({
-    token,
-    role: user.role,
-    name: user.name,
-    zone: user.zone,
-    username: user.username
-  });
+  res.json({ token, role: user.role, name: user.name, zone: user.zone, username: user.username });
 });
 
-// =====================
-// 📌 INCIDENTES API (PROTEGIDO)
-// =====================
-app.post('/incidents',
-  auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN']),
-  (req, res) => {
-    const data = req.body;
+// ==========================================
+// 📌 API INCIDENTES (AHORA CON SQL)
+// ==========================================
 
-    const incident = {
-      id: generateId(),
-      tipo: data.tipo || 'SIN_TIPO',
-      descripcion: data.descripcion || '',
-      latitude: data.latitude || null,
-      longitude: data.longitude || null,
-      received_at: new Date().toISOString(),
-      status: 'NUEVA',
-      smart_score: data.smart_score || 0,
-      zone: req.user.zone || null
-    };
+// 1. CREAR INCIDENTE
+app.post('/incidents', auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
+  const data = req.body;
+  const newId = generateId();
+  const receivedAt = new Date().toISOString();
 
-    incidents.push(incident);
-    saveIncidents();
+  const incident = {
+    id: newId,
+    tipo: data.tipo || 'SIN_TIPO',
+    descripcion: data.descripcion || '',
+    latitude: data.latitude || null,
+    longitude: data.longitude || null,
+    received_at: receivedAt,
+    status: 'NUEVA',
+    smart_score: data.smart_score || 0,
+    zone: req.user.zone || null
+  };
 
-    // ✅ NUEVO: Emitir evento en tiempo real a todos los clientes conectados
-    console.log('📢 Emitiendo alerta socket:', incident.tipo);
+  const query = `INSERT INTO incidents (id, tipo, descripcion, latitude, longitude, received_at, status, smart_score, zone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  const params = [incident.id, incident.tipo, incident.descripcion, incident.latitude, incident.longitude, incident.received_at, incident.status, incident.smart_score, incident.zone];
+
+  db.run(query, params, function(err) {
+    if (err) {
+      console.error(err.message);
+      return res.status(500).json({ error: "Error al guardar en BD" });
+    }
+
+    // ⚡ Emitir Socket
+    console.log('📢 Nueva alerta SQL:', incident.tipo);
     io.emit('nueva_alerta', incident);
 
     res.json({ ok: true, incident });
-  }
-);
-
-app.get('/incidents',
-  auth(['TOPICO', 'SUPERVISOR', 'ADMIN']),
-  (req, res) => {
-    res.json(incidents);
-  }
-);
-
-app.get('/incidents/:id',
-  auth(['TOPICO', 'SUPERVISOR', 'ADMIN']),
-  (req, res) => {
-    const i = incidents.find(x => x.id === req.params.id);
-    if (!i) return res.status(404).json({ message: 'No encontrado' });
-    res.json(i);
-  }
-);
-
-app.patch('/incidents/:id/status',
-  auth(['TOPICO', 'SUPERVISOR', 'ADMIN']),
-  (req, res) => {
-    const inc = incidents.find(x => x.id === req.params.id);
-    if (!inc) return res.status(404).json({ message: 'No encontrado' });
-
-    inc.status = req.body.status || inc.status;
-    saveIncidents();
-
-    // Opcional: También podrías emitir cuando cambia el estado
-    // io.emit('estado_actualizado', inc);
-
-    res.json({ ok: true, incident: inc });
-  }
-);
-
-// =====================
-// Health check
-// =====================
-app.get('/health', (req, res) => {
-  res.json({ ok: true, incidents: incidents.length });
+  });
 });
 
-// =====================
-// START SERVER (MODIFICADO)
-// =====================
-// ⚠️ IMPORTANTE: Usar server.listen en lugar de app.listen para que funcionen los sockets
+// 2. LISTAR INCIDENTES
+app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
+  db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
+// 3. DETALLE INCIDENTE
+app.get('/incidents/:id', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
+  db.get("SELECT * FROM incidents WHERE id = ?", [req.params.id], (err, row) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!row) return res.status(404).json({ message: 'No encontrado' });
+    res.json(row);
+  });
+});
+
+// ==========================================
+// ✅ HU15: CAMBIAR ESTADO (PATCH SQL)
+// ==========================================
+app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  const validStatuses = ['NUEVA', 'EN_ATENCION', 'CERRADA'];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: 'Estado no válido' });
+  }
+
+  const sql = `UPDATE incidents SET status = ? WHERE id = ?`;
+
+  db.run(sql, [status, id], function(err) {
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ message: 'Incidente no encontrado' });
+
+    console.log(`🔄 Estado actualizado (SQL): ID ${id} -> ${status}`);
+
+    // 🔥 Notificar a todos los clientes web
+    io.emit('cambio_estado', { id, status });
+
+    res.json({ ok: true, id, newStatus: status });
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ ok: true, db: 'SQLite' });
+});
+
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor SIAAS (con Sockets ⚡) activo:
-  → http://localhost:${PORT}
-  → https://siaas-backend.onrender.com
-  `);
+  console.log(`🚀 Servidor SIAAS (SQLite) corriendo en puerto ${PORT}`);
 });
