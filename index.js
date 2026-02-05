@@ -22,7 +22,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 app.use(cors());
 app.use(express.json());
 
-// 📦 BASE DE DATOS
+// 📦 BASE DE DATOS SQLITE
 const db = new sqlite3.Database('./siaas.db', (err) => {
   if (err) console.error('❌ Error BD:', err.message);
   else console.log('🗄️ SQLite conectada');
@@ -76,25 +76,35 @@ app.post('/auth/login', (req, res) => {
 });
 
 // ==========================================
-// 📌 API INCIDENTES (CORREGIDA)
+// 📌 API INCIDENTES (CORREGIDA Y ROBUSTA)
 // ==========================================
 
-// 1. CREAR INCIDENTE (Con Traductor de Severidad)
 app.post('/incidents', auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   const data = req.body;
 
-  // LOG PARA DEPURAR: Ver qué llega realmente del celular
   console.log("📥 Recibido del móvil:", JSON.stringify(data));
 
-  // --- TRADUCTOR DE SEVERIDAD ---
-  // Si no viene smart_score, intentamos calcularlo desde el texto 'severidad' o 'severity'
-  let calculatedScore = data.smart_score;
+  // --- 🔥 SUPER TRADUCTOR DE SEVERIDAD 🔥 ---
+  // Captura cualquier variante que envíe el celular
+  let calculatedScore = 10; // Valor por defecto (Leve)
 
-  if (!calculatedScore) {
-    const sevText = (data.severidad || data.severity || '').toString().toUpperCase();
-    if (sevText.includes('GRAVE') || sevText.includes('HIGH')) calculatedScore = 60; // Rojo
-    else if (sevText.includes('MEDIO') || sevText.includes('MEDIUM')) calculatedScore = 40; // Naranja
-    else calculatedScore = 10; // Verde (Leve por defecto)
+  // 1. Si ya viene como número, úsalo
+  if (data.smart_score && typeof data.smart_score === 'number') {
+      calculatedScore = data.smart_score;
+  } else {
+      // 2. Si es texto, busca palabras clave
+      // Busca en 'severidad', 'severity', 'priority' o incluso 'tipo' si fuera necesario
+      const sevText = (data.severidad || data.severity || data.priority || '').toString().toUpperCase();
+
+      if (['GRAVE', 'ALTA', 'HIGH', 'CRITICA', 'URGENTE', 'SEVERA'].some(w => sevText.includes(w))) {
+          calculatedScore = 60; // ROJO
+      } else if (['MEDIO', 'MEDIA', 'MEDIUM', 'MODERADA', 'REGULAR'].some(w => sevText.includes(w))) {
+          calculatedScore = 40; // NARANJA
+      } else {
+          calculatedScore = 10; // VERDE
+      }
+
+      console.log(`🔍 Severidad detectada: "${sevText}" -> Score: ${calculatedScore}`);
   }
 
   const incident = {
@@ -105,7 +115,7 @@ app.post('/incidents', auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', '
     longitude: data.longitude || null,
     received_at: new Date().toISOString(),
     status: 'NUEVA',
-    smart_score: calculatedScore, // Usamos el score calculado
+    smart_score: calculatedScore,
     zone: req.user.zone || null
   };
 
@@ -118,13 +128,13 @@ app.post('/incidents', auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', '
       return res.status(500).json({ error: "Error al guardar en BD" });
     }
 
-    console.log(`✅ Guardado OK: ${incident.tipo} (Score: ${incident.smart_score})`);
+    console.log(`✅ Guardado OK: ${incident.tipo} (Color: ${incident.smart_score >= 51 ? 'Rojo' : incident.smart_score >= 31 ? 'Naranja' : 'Verde'})`);
     io.emit('nueva_alerta', incident);
     res.json({ ok: true, incident });
   });
 });
 
-// 2. LISTAR
+// LISTAR
 app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -132,7 +142,7 @@ app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   });
 });
 
-// 3. DETALLE
+// DETALLE
 app.get('/incidents/:id', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   db.get("SELECT * FROM incidents WHERE id = ?", [req.params.id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -141,13 +151,10 @@ app.get('/incidents/:id', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) =>
   });
 });
 
-// 4. CAMBIAR ESTADO (PATCH)
+// CAMBIAR ESTADO
 app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
-
-  // Log para ver si llega la petición
-  console.log(`🔄 Intento cambio estado: ID=${id} a STATUS=${status}`);
 
   const validStatuses = ['NUEVA', 'EN_ATENCION', 'CERRADA'];
   if (!validStatuses.includes(status)) return res.status(400).json({ message: 'Estado no válido' });
@@ -155,14 +162,8 @@ app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req
   const sql = `UPDATE incidents SET status = ? WHERE id = ?`;
 
   db.run(sql, [status, id], function(err) {
-    if (err) {
-        console.error("❌ Error DB Update:", err.message);
-        return res.status(500).json({ error: err.message });
-    }
-    if (this.changes === 0) {
-        console.error("⚠️ ID no encontrado en DB:", id);
-        return res.status(404).json({ message: 'Incidente no encontrado o ID incorrecto' });
-    }
+    if (err) return res.status(500).json({ error: err.message });
+    if (this.changes === 0) return res.status(404).json({ message: 'Incidente no encontrado' });
 
     console.log(`✅ Estado actualizado: ${status}`);
     io.emit('cambio_estado', { id, status });
@@ -173,5 +174,5 @@ app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req
 app.get('/health', (req, res) => res.json({ ok: true, db: 'SQLite' }));
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor SIAAS V2 Listo en puerto ${PORT}`);
+  console.log(`🚀 Servidor SIAAS V3 (Robust Severity) Listo en puerto ${PORT}`);
 });
