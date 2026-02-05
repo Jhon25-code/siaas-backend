@@ -3,19 +3,17 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
-// ✅ IMPORTANTE: SQLite en lugar de 'fs'
 const sqlite3 = require('sqlite3').verbose();
 const http = require('http');
 const { Server } = require("socket.io");
-
 const auth = require('./middleware/auth');
 
 const app = express();
 const server = http.createServer(app);
 
-// Configuración de Socket.io
+// Configuración Socket.io
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: { origin: "*", methods: ["GET", "POST", "PATCH"] }
 });
 
 const PORT = process.env.PORT || 3000;
@@ -24,16 +22,13 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 app.use(cors());
 app.use(express.json());
 
-// ==========================================
-// 📦 BASE DE DATOS SQLITE (Reemplaza al JSON)
-// ==========================================
-// Esto creará un archivo 'siaas.db' automáticamente
+// 📦 BASE DE DATOS
 const db = new sqlite3.Database('./siaas.db', (err) => {
-  if (err) console.error('❌ Error al abrir BD:', err.message);
-  else console.log('🗄️ Base de datos SQLite conectada');
+  if (err) console.error('❌ Error BD:', err.message);
+  else console.log('🗄️ SQLite conectada');
 });
 
-// Crear tabla si no existe (Inicialización automática)
+// Crear tabla
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS incidents (
     id TEXT PRIMARY KEY,
@@ -48,22 +43,17 @@ db.serialize(() => {
   )`);
 });
 
-// ==========================================
 // SERVIR FRONTEND
-// ==========================================
 const WEB_DIR = path.join(__dirname, 'web');
 app.use('/css', express.static(path.join(WEB_DIR, 'css')));
 app.use('/js', express.static(path.join(WEB_DIR, 'js')));
 app.use('/images', express.static(path.join(WEB_DIR, 'images')));
 app.use(express.static(WEB_DIR));
-
 app.get('/login.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'login.html')));
 app.get('/dashboard.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'dashboard.html')));
 app.get('/', (req, res) => res.redirect('/login.html'));
 
-// ==========================================
-// USUARIOS DEMO (Hardcoded para prototipo)
-// ==========================================
+// USUARIOS
 const users = [
   { id: 1, username: 'topico', passwordHash: bcrypt.hashSync('123456', 10), role: 'TOPICO', zone: 'ZONA_1', name: 'Tópico' },
   { id: 2, username: 'admin', passwordHash: bcrypt.hashSync('123456', 10), role: 'ADMIN', zone: null, name: 'Admin' },
@@ -72,50 +62,50 @@ const users = [
   { id: 5, username: 'auxiliar', passwordHash: bcrypt.hashSync('123456', 10), role: 'AUXILIAR', zone: 'ZONA_1', name: 'Auxiliar' },
 ];
 
-function generateId() {
-  return String(Date.now()) + Math.random().toString(16).slice(2);
-}
+function generateId() { return String(Date.now()) + Math.random().toString(16).slice(2); }
 
-// ==================
 // AUTH
-// ==================
 app.post('/auth/login', (req, res) => {
   const { username, password } = req.body || {};
   const user = users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ message: 'Credenciales inválidas' });
-
-  if (!bcrypt.compareSync(password, user.passwordHash)) {
+  if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
     return res.status(401).json({ message: 'Credenciales inválidas' });
   }
-
-  const token = jwt.sign(
-    { id: user.id, role: user.role, name: user.name, zone: user.zone, username: user.username },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
+  const token = jwt.sign({ id: user.id, role: user.role, name: user.name, zone: user.zone, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, role: user.role, name: user.name, zone: user.zone, username: user.username });
 });
 
 // ==========================================
-// 📌 API INCIDENTES (AHORA CON SQL)
+// 📌 API INCIDENTES (CORREGIDA)
 // ==========================================
 
-// 1. CREAR INCIDENTE
+// 1. CREAR INCIDENTE (Con Traductor de Severidad)
 app.post('/incidents', auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   const data = req.body;
-  const newId = generateId();
-  const receivedAt = new Date().toISOString();
+
+  // LOG PARA DEPURAR: Ver qué llega realmente del celular
+  console.log("📥 Recibido del móvil:", JSON.stringify(data));
+
+  // --- TRADUCTOR DE SEVERIDAD ---
+  // Si no viene smart_score, intentamos calcularlo desde el texto 'severidad' o 'severity'
+  let calculatedScore = data.smart_score;
+
+  if (!calculatedScore) {
+    const sevText = (data.severidad || data.severity || '').toString().toUpperCase();
+    if (sevText.includes('GRAVE') || sevText.includes('HIGH')) calculatedScore = 60; // Rojo
+    else if (sevText.includes('MEDIO') || sevText.includes('MEDIUM')) calculatedScore = 40; // Naranja
+    else calculatedScore = 10; // Verde (Leve por defecto)
+  }
 
   const incident = {
-    id: newId,
+    id: generateId(),
     tipo: data.tipo || 'SIN_TIPO',
     descripcion: data.descripcion || '',
     latitude: data.latitude || null,
     longitude: data.longitude || null,
-    received_at: receivedAt,
+    received_at: new Date().toISOString(),
     status: 'NUEVA',
-    smart_score: data.smart_score || 0,
+    smart_score: calculatedScore, // Usamos el score calculado
     zone: req.user.zone || null
   };
 
@@ -124,19 +114,17 @@ app.post('/incidents', auth(['TRABAJADOR', 'AUXILIAR', 'TOPICO', 'SUPERVISOR', '
 
   db.run(query, params, function(err) {
     if (err) {
-      console.error(err.message);
+      console.error("❌ Error DB Insert:", err.message);
       return res.status(500).json({ error: "Error al guardar en BD" });
     }
 
-    // ⚡ Emitir Socket
-    console.log('📢 Nueva alerta SQL:', incident.tipo);
+    console.log(`✅ Guardado OK: ${incident.tipo} (Score: ${incident.smart_score})`);
     io.emit('nueva_alerta', incident);
-
     res.json({ ok: true, incident });
   });
 });
 
-// 2. LISTAR INCIDENTES
+// 2. LISTAR
 app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -144,7 +132,7 @@ app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   });
 });
 
-// 3. DETALLE INCIDENTE
+// 3. DETALLE
 app.get('/incidents/:id', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   db.get("SELECT * FROM incidents WHERE id = ?", [req.params.id], (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -153,37 +141,37 @@ app.get('/incidents/:id', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) =>
   });
 });
 
-// ==========================================
-// ✅ HU15: CAMBIAR ESTADO (PATCH SQL)
-// ==========================================
+// 4. CAMBIAR ESTADO (PATCH)
 app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
 
+  // Log para ver si llega la petición
+  console.log(`🔄 Intento cambio estado: ID=${id} a STATUS=${status}`);
+
   const validStatuses = ['NUEVA', 'EN_ATENCION', 'CERRADA'];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ message: 'Estado no válido' });
-  }
+  if (!validStatuses.includes(status)) return res.status(400).json({ message: 'Estado no válido' });
 
   const sql = `UPDATE incidents SET status = ? WHERE id = ?`;
 
   db.run(sql, [status, id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-    if (this.changes === 0) return res.status(404).json({ message: 'Incidente no encontrado' });
+    if (err) {
+        console.error("❌ Error DB Update:", err.message);
+        return res.status(500).json({ error: err.message });
+    }
+    if (this.changes === 0) {
+        console.error("⚠️ ID no encontrado en DB:", id);
+        return res.status(404).json({ message: 'Incidente no encontrado o ID incorrecto' });
+    }
 
-    console.log(`🔄 Estado actualizado (SQL): ID ${id} -> ${status}`);
-
-    // 🔥 Notificar a todos los clientes web
+    console.log(`✅ Estado actualizado: ${status}`);
     io.emit('cambio_estado', { id, status });
-
     res.json({ ok: true, id, newStatus: status });
   });
 });
 
-app.get('/health', (req, res) => {
-  res.json({ ok: true, db: 'SQLite' });
-});
+app.get('/health', (req, res) => res.json({ ok: true, db: 'SQLite' }));
 
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor SIAAS (SQLite) corriendo en puerto ${PORT}`);
+  console.log(`🚀 Servidor SIAAS V2 Listo en puerto ${PORT}`);
 });

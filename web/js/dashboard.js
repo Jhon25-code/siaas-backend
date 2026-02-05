@@ -65,9 +65,8 @@ let socket;
 // ==========================================
 document.querySelectorAll('[data-filter]').forEach(btn => {
   btn.addEventListener('click', () => {
-    // Quitar clase activa a todos y poner al actual
-    document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active')); // Asumiendo que tienes CSS para .active
-    // btn.classList.add('active'); // Descomenta si agregas estilo .active en CSS
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+    // btn.classList.add('active'); // Descomenta si tienes estilos para active
 
     CURRENT_FILTER = btn.dataset.filter;
     renderCards(currentIncidents);
@@ -118,7 +117,7 @@ function stateUI(status) {
 }
 
 // ==========================================
-// 5. GESTIÓN DE ESTADOS (HU15)
+// 5. GESTIÓN DE ESTADOS (HU15) - MEJORADO
 // ==========================================
 async function changeStatus(id, nextStatus, btnElement) {
   // 1. Feedback visual (UX)
@@ -129,18 +128,35 @@ async function changeStatus(id, nextStatus, btnElement) {
   }
 
   try {
-    // 2. Petición al Backend
-    await API.request(`/incidents/${id}/status`, {
+    // 2. Petición al Backend (Usamos fetch directo para control total de errores)
+    const token = localStorage.getItem('token');
+
+    // Asumimos ruta relativa '/incidents/...' que maneja el backend Node
+    const response = await fetch(`/incidents/${id}/status`, {
       method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` // 🔥 IMPORTANTE: Enviar Token
+      },
       body: JSON.stringify({ status: nextStatus })
     });
 
-    // 3. Recargar datos
+    // Validar respuesta HTTP
+    if (!response.ok) {
+        // Intentar leer el mensaje de error del servidor
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || `Error ${response.status}`);
+    }
+
+    // 3. Éxito: Recargar datos
     await load();
 
   } catch (error) {
     console.error("Error cambiando estado:", error);
-    alert("Error de conexión. Intente nuevamente.");
+    // Mostrar mensaje real del servidor en el alert
+    alert(`⛔ No se pudo actualizar:\n${error.message}`);
+
+    // Restaurar botón si falló
     if (btnElement) {
         btnElement.disabled = false;
         btnElement.innerText = "Reintentar";
@@ -155,14 +171,13 @@ const modal = document.getElementById('modal');
 const modalBody = document.getElementById('modalBody');
 const modalTitle = document.getElementById('modalTitle');
 const modalSub = document.getElementById('modalSub');
-const closeModalBtn = document.getElementById('closeModalBtn'); // Asegúrate de tener este ID en tu HTML
-const closeModalX = document.querySelector('.close'); // La X del modal
+const closeModalBtn = document.getElementById('closeModalBtn');
+const closeModalX = document.querySelector('.close');
 
 function closeModal() {
     modal.classList.add('hidden');
 }
 
-// Event listeners para cerrar modal
 if (closeModalBtn) closeModalBtn.onclick = closeModal;
 if (closeModalX) closeModalX.onclick = closeModal;
 window.onclick = (event) => {
@@ -259,12 +274,17 @@ function renderCards(data) {
     `;
 
     card.onclick = async () => {
-      // openModal(i); // Usar datos en memoria (más rápido)
+      // Usamos el API request global o fallback a data local
       try {
-          const freshData = await API.request(`/incidents/${i.id}`);
-          openModal(freshData);
+          // Si tienes API.request disponible globalmente
+          if (typeof API !== 'undefined') {
+             const freshData = await API.request(`/incidents/${i.id}`);
+             openModal(freshData);
+          } else {
+             openModal(i);
+          }
       } catch(e) {
-          openModal(i); // Fallback a datos locales
+          openModal(i);
       }
     };
 
@@ -364,22 +384,18 @@ function initSocket() {
   socket.on('nueva_alerta', (newIncident) => {
     console.log("⚡ SOCKET: Nueva alerta", newIncident);
 
-    // 1. Audio
     const audio = document.getElementById('alertSound');
     if (audio) {
         audio.currentTime = 0;
         audio.play().catch(e => console.log("Audio autoplay bloqueado"));
     }
 
-    // 2. Toast
     showToast(newIncident);
 
-    // 3. Agregar y Renderizar
     currentIncidents.unshift(newIncident); // Al principio
     renderCards(currentIncidents);
     updateMap(currentIncidents);
 
-    // 4. Volar mapa
     if (map && newIncident.latitude && newIncident.longitude) {
       map.flyTo([newIncident.latitude, newIncident.longitude], 13, { duration: 1.5 });
       L.popup()
@@ -387,6 +403,13 @@ function initSocket() {
         .setContent(`<div style="text-align:center">🚨 <b>¡NUEVA ALERTA!</b><br>${newIncident.tipo}</div>`)
         .openOn(map);
     }
+  });
+
+  // Escuchar también cambios de estado desde otros clientes
+  socket.on('cambio_estado', (data) => {
+      console.log("⚡ SOCKET: Cambio de estado", data);
+      // Recargar para ver el nuevo estado
+      load();
   });
 }
 
@@ -401,7 +424,6 @@ if (btnExport) {
       return;
     }
 
-    // Cabecera del CSV (usamos ; para compatibilidad Excel español)
     let csvContent = "data:text/csv;charset=utf-8,";
     csvContent += "ID;FECHA;TIPO;ESTADO;SEVERIDAD;LATITUD;LONGITUD;DESCRIPCION\n";
 
@@ -442,7 +464,18 @@ if (btnExport) {
 // ==========================================
 async function load() {
   try {
-    const data = await API.request('/incidents');
+    // Intentamos usar API.request si existe, sino fetch manual
+    let data;
+    if (typeof API !== 'undefined') {
+        data = await API.request('/incidents');
+    } else {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/incidents', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        data = await res.json();
+    }
+
     currentIncidents = data;
     renderCards(currentIncidents);
     updateMap(currentIncidents);
