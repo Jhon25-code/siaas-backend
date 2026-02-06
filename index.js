@@ -13,7 +13,7 @@ const auth = require('./middleware/auth');
 const app = express();
 const server = http.createServer(app);
 
-// Configuración Socket.io (Permisiva para evitar desconexiones)
+// Configuración Socket.io
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST", "PATCH"] },
   transports: ['websocket', 'polling']
@@ -26,7 +26,7 @@ app.use(cors());
 app.use(express.json());
 
 // ---------------------------------------------------------
-// 📦 BASE DE DATOS (Manejo de errores robusto)
+// 📦 BASE DE DATOS
 // ---------------------------------------------------------
 const db = new sqlite3.Database('./siaas.db', (err) => {
   if (err) {
@@ -36,7 +36,6 @@ const db = new sqlite3.Database('./siaas.db', (err) => {
   }
 });
 
-// Crear tabla si no existe
 db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS incidents (
     id TEXT PRIMARY KEY,
@@ -57,7 +56,6 @@ db.serialize(() => {
 const WEB_DIR = path.join(__dirname, 'web');
 app.use(express.static(WEB_DIR));
 
-// Rutas directas para evitar errores 404
 app.get('/', (req, res) => res.redirect('/login.html'));
 app.get('/login.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'login.html')));
 app.get('/dashboard.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'dashboard.html')));
@@ -65,18 +63,13 @@ app.get('/dashboard.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'dashbo
 // ---------------------------------------------------------
 // 👤 USUARIOS
 // ---------------------------------------------------------
-// Contraseña “oficial” del sistema (web)
 const PASSWORD_HASH = bcrypt.hashSync('Siaas2026', 10);
-
-// ✅ Contraseña DEMO solo para trabajador (Flutter) - opcional
 const PASSWORD_HASH_TRABAJADOR_DEMO = bcrypt.hashSync('123456', 10);
 
 const users = [
   { id: 1, username: 'topico', passwordHash: PASSWORD_HASH, role: 'TOPICO', name: 'Tópico Central' },
   { id: 2, username: 'admin', passwordHash: PASSWORD_HASH, role: 'ADMIN', name: 'Administrador' },
   { id: 3, username: 'supervisor', passwordHash: PASSWORD_HASH, role: 'SUPERVISOR', name: 'Supervisor Zona 1' },
-
-  // ✅ trabajador acepta Siaas2026 (web) y 123456 (demo móvil)
   {
     id: 4,
     username: 'trabajador',
@@ -88,11 +81,10 @@ const users = [
 ];
 
 // ---------------------------------------------------------
-// 🔐 LOGIN (Más compatible con Flutter)
+// 🔐 LOGIN
 // ---------------------------------------------------------
 app.post('/auth/login', (req, res) => {
   try {
-    // Aceptar varios nombres de campos (compatibilidad)
     const username =
       req.body.username ||
       req.body.usuario ||
@@ -106,7 +98,6 @@ app.post('/auth/login', (req, res) => {
 
     const user = users.find(u => u.username === username);
 
-    // Verificación de contraseña (incluye alternativa demo solo para trabajador)
     const okMain = user && bcrypt.compareSync(password, user.passwordHash);
     const okAlt = user && user.passwordHashAlt && bcrypt.compareSync(password, user.passwordHashAlt);
 
@@ -128,25 +119,22 @@ app.post('/auth/login', (req, res) => {
 });
 
 // =========================================================
-// 🚨 API INCIDENTES (LÓGICA DE SEVERIDAD + ESTADOS)
+// 🚨 API INCIDENTES (🔥 FIX CLAVE AQUÍ 🔥)
 // =========================================================
-app.post('/incidents', auth(['TRABAJADOR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
+
+// 🔥 CAMBIO: solo validamos TOKEN, NO rol
+app.post('/incidents', auth(), (req, res) => {
   const data = req.body;
 
-  // 🔍 LOG PARA DEBUG EN RENDER:
   console.log("📥 [MÓVIL] Datos recibidos:", JSON.stringify(data));
 
-  // --- LÓGICA MAESTRA DE SEVERIDAD ---
-  let score = 10; // Default: Verde (Leve)
-
+  let score = 10;
   const analisis = JSON.stringify(data).toUpperCase();
 
-  if (analisis.includes('GRAVE') || analisis.includes('ALTA') || analisis.includes('HIGH') || analisis.includes('CRITICA')) {
+  if (analisis.includes('GRAVE') || analisis.includes('ALTA') || analisis.includes('CRITICA')) {
     score = 60;
-  } else if (analisis.includes('MEDIO') || analisis.includes('MEDIA') || analisis.includes('MEDIUM') || analisis.includes('MODERADA')) {
+  } else if (analisis.includes('MEDIO') || analisis.includes('MEDIA')) {
     score = 40;
-  } else {
-    score = 10;
   }
 
   if (typeof data.smart_score === 'number' && data.smart_score > 0) {
@@ -162,27 +150,28 @@ app.post('/incidents', auth(['TRABAJADOR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (r
     received_at: new Date().toISOString(),
     status: 'ABIERTO',
     smart_score: score,
-    zone: (req.user && req.user.zone) ? req.user.zone : 'ZONA_1'
+    zone: 'ZONA_1'
   };
 
-  const sql = `INSERT INTO incidents (id, tipo, descripcion, latitude, longitude, received_at, status, smart_score, zone)
-               VALUES (?,?,?,?,?,?,?,?,?)`;
+  const sql = `INSERT INTO incidents
+    (id, tipo, descripcion, latitude, longitude, received_at, status, smart_score, zone)
+    VALUES (?,?,?,?,?,?,?,?,?)`;
 
-  db.run(sql, Object.values(incident), function(err) {
+  db.run(sql, Object.values(incident), function (err) {
     if (err) {
-      console.error("❌ ERROR AL GUARDAR EN BD:", err.message);
+      console.error("❌ ERROR BD:", err.message);
       return res.status(500).json({ error: "Error de base de datos" });
     }
 
-    console.log(`✅ Incidente Guardado | Tipo: ${incident.tipo} | Severidad Detectada: ${score}`);
-
+    console.log(`✅ Incidente guardado: ${incident.tipo}`);
     io.emit('nueva_alerta', incident);
-
     res.json({ ok: true, id: incident.id });
   });
 });
 
-// Listar
+// ---------------------------------------------------------
+// 📋 CONSULTAS (solo web)
+// ---------------------------------------------------------
 app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -190,42 +179,25 @@ app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   });
 });
 
-// Detalle
-app.get('/incidents/:id', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
-  db.get("SELECT * FROM incidents WHERE id = ?", [req.params.id], (err, row) => {
-    if (!row) return res.status(404).json({ message: 'No encontrado' });
-    res.json(row);
-  });
-});
-
-// Cambiar Estado
 app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
-  const { status } = req.body;
-  let finalStatus = 'ABIERTO';
-  const s = (status || '').toUpperCase();
+  const s = (req.body.status || '').toUpperCase();
+  const finalStatus =
+    s.includes('ATENCION') ? 'EN_ATENCION' :
+    s.includes('CERR') ? 'CERRADO' : 'ABIERTO';
 
-  if (s === 'EN_ATENCION' || s === 'EN ATENCION' || s === 'EN ATENCIÓN') finalStatus = 'EN_ATENCION';
-  if (s === 'CERRADO' || s === 'CERRADA' || s === 'FINALIZADO') finalStatus = 'CERRADO';
-
-  db.run("UPDATE incidents SET status = ? WHERE id = ?", [finalStatus, req.params.id], function(err) {
-    if (err) return res.status(500).json({ error: err.message });
-
-    console.log(`🔄 Estado cambiado: ID ${req.params.id} -> ${finalStatus}`);
-    io.emit('cambio_estado', { id: req.params.id, status: finalStatus });
-    res.json({ ok: true });
-  });
+  db.run(
+    "UPDATE incidents SET status = ? WHERE id = ?",
+    [finalStatus, req.params.id],
+    () => {
+      io.emit('cambio_estado', { id: req.params.id, status: finalStatus });
+      res.json({ ok: true });
+    }
+  );
 });
 
-app.get('/health', (req, res) => res.json({ status: 'OK', db: 'SQLite' }));
+app.get('/health', (req, res) => res.json({ status: 'OK' }));
 
-// ✅ Manejo global de errores (evita HTML raro)
-app.use((err, req, res, next) => {
-  console.error("❌ ERROR GLOBAL:", err);
-  res.status(500).json({ message: "Error interno" });
-});
-
-// Iniciar Servidor
+// ---------------------------------------------------------
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SERVIDOR SIAAS ACTIVO EN PUERTO ${PORT}`);
-  console.log(`📡 Esperando conexiones...`);
 });
