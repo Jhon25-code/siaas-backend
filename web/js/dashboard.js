@@ -1,14 +1,17 @@
 // ==========================================
-// 0. HELPERS DE SESIÓN (SIAAS)
-// ==========================================
-const SIAAS_KEYS = ['token', 'role', 'name', 'zone', 'username'];
-function clearSession() {
-  SIAAS_KEYS.forEach((k) => localStorage.removeItem(k));
-}
-
-// ==========================================
 // 1. AUTENTICACIÓN Y SESIÓN
 // ==========================================
+function ensureAuth() {
+  const token = localStorage.getItem('token');
+  if (!token) window.location.href = '/login.html';
+}
+ensureAuth();
+
+document.getElementById('logout').onclick = () => {
+  localStorage.clear();
+  window.location.href = '/login.html';
+};
+
 function parseJwt(token) {
   try {
     const base64Url = token.split('.')[1];
@@ -16,7 +19,7 @@ function parseJwt(token) {
     const jsonPayload = decodeURIComponent(
       atob(base64)
         .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
         .join('')
     );
     return JSON.parse(jsonPayload);
@@ -25,50 +28,26 @@ function parseJwt(token) {
   }
 }
 
-const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
-
-function ensureAuth() {
-  const token = (localStorage.getItem('token') || '').trim();
-  if (!token) {
-    window.location.href = '/login.html';
-    return;
-  }
-
-  const jwtData = parseJwt(token);
-  const role = String(jwtData?.role || '').toUpperCase();
-
-  if (!WEB_ROLES_ALLOWED.includes(role)) {
-    alert('No autorizado');
-    clearSession();
-    window.location.href = '/login.html';
-    return;
-  }
-}
-
-ensureAuth();
-
-const logoutBtn = document.getElementById('logout');
-if (logoutBtn) {
-  logoutBtn.onclick = () => {
-    clearSession();
-    window.location.href = '/login.html';
-  };
-}
-
-const rawToken = (localStorage.getItem('token') || '').trim();
+const rawToken = localStorage.getItem('token') || '';
 const jwtData = rawToken ? parseJwt(rawToken) : null;
 
 const SESSION = {
   token: rawToken,
-  role: String(jwtData?.role || '').toUpperCase(),
-  // ✅ tu JWT trae "name" (desde index.js), no "username"
-  name: jwtData?.name || localStorage.getItem('name') || 'Usuario',
-  zone: jwtData?.zone || localStorage.getItem('zone') || '',
+  role: (jwtData?.role || '').toUpperCase(),
+  name: jwtData?.name || 'Usuario',
+  zone: jwtData?.zone || '',
 };
 
 const whoEl = document.getElementById('who');
 if (whoEl) {
   whoEl.textContent = `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;
+}
+
+const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
+if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
+  alert('No autorizado');
+  localStorage.clear();
+  window.location.href = '/login.html';
 }
 
 const CAN_CHANGE_STATUS = true;
@@ -84,10 +63,9 @@ let socket;
 // ==========================================
 // 3. FILTROS
 // ==========================================
-document.querySelectorAll('[data-filter]').forEach((btn) => {
+document.querySelectorAll('[data-filter]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('[data-filter]').forEach((b) => b.classList.remove('active'));
-    // btn.classList.add('active'); // Descomenta si usas clase active en CSS
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
     CURRENT_FILTER = btn.dataset.filter;
     renderCards(currentIncidents);
     updateMap(currentIncidents);
@@ -98,7 +76,7 @@ const cardsEl = document.getElementById('cards');
 const emptyEl = document.getElementById('empty');
 
 // ==========================================
-// 4. HELPERS DE FORMATO
+// 4. HELPERS
 // ==========================================
 function scoreLabel(score) {
   if (score >= 51) return 'Grave';
@@ -113,11 +91,7 @@ function sevColor(label) {
 }
 
 function fmtDate(iso) {
-  try {
-    return new Date(iso).toLocaleString('es-PE');
-  } catch {
-    return '—';
-  }
+  try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }
 }
 
 function fmtCoord(v) {
@@ -125,14 +99,16 @@ function fmtCoord(v) {
   return Number(v).toFixed(6);
 }
 
-// 🔥 NORMALIZACIÓN DE ESTADOS
+// ==========================================
+// 5. NORMALIZACIÓN DE ESTADO
+// ==========================================
 function normalizeStatus(status) {
-  if (!status) return 'NUEVA';
+  if (!status) return 'ABIERTO';
   const st = status.toString().toLowerCase();
 
-  if (st === 'nueva' || st === 'pendiente' || st === 'abierto') return 'ABIERTO';
-  if (st === 'en_atencion' || st === 'en atención' || st === 'en atencion') return 'EN_ATENCION';
-  if (st === 'cerrada' || st === 'cerrado') return 'CERRADO';
+  if (['abierto', 'pendiente', 'nueva'].includes(st)) return 'ABIERTO';
+  if (['en_atencion', 'en atención'].includes(st)) return 'EN_ATENCION';
+  if (['cerrado', 'cerrada', 'finalizado'].includes(st)) return 'CERRADO';
 
   return 'ABIERTO';
 }
@@ -144,117 +120,47 @@ function stateUI(statusNorm) {
 }
 
 // ==========================================
-// 5. GESTIÓN DE ESTADOS
+// 6. CAMBIO DE ESTADO
 // ==========================================
-async function changeStatus(id, nextStatus, btnElement) {
-  if (btnElement) {
-    btnElement.disabled = true;
-    btnElement.innerHTML = '⏳ ...';
+async function changeStatus(id, nextStatus, btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳';
   }
 
   try {
-    const token = (localStorage.getItem('token') || '').trim();
-    if (!token) {
-      clearSession();
-      window.location.href = '/login.html';
-      return;
-    }
-
-    const response = await fetch(`/incidents/${id}/status`, {
+    const res = await fetch(`/incidents/${id}/status`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${SESSION.token}`
       },
-      body: JSON.stringify({ status: nextStatus }),
+      body: JSON.stringify({ status: nextStatus })
     });
 
-    // ✅ A prueba de respuestas no JSON
-    const raw = await response.text();
-    let json = {};
-    try {
-      json = raw ? JSON.parse(raw) : {};
-    } catch (_) {
-      json = {};
-    }
-
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        clearSession();
-        window.location.href = '/login.html';
-        return;
-      }
-      throw new Error(json.message || json.error || `Error ${response.status}`);
-    }
-
+    if (!res.ok) throw new Error(`Error ${res.status}`);
     await load();
-  } catch (error) {
-    alert(`⛔ Error:\n${error.message}`);
-    if (btnElement) {
-      btnElement.disabled = false;
-      btnElement.innerText = 'Reintentar';
-    }
+  } catch (e) {
+    alert('Error al cambiar estado');
+    if (btn) btn.disabled = false;
   }
 }
 
 // ==========================================
-// 6. MODAL
-// ==========================================
-const modal = document.getElementById('modal');
-const modalBody = document.getElementById('modalBody');
-const modalTitle = document.getElementById('modalTitle');
-const modalSub = document.getElementById('modalSub');
-const closeModalBtn = document.getElementById('closeModalBtn');
-const closeModalX = document.querySelector('.close');
-
-function closeModal() {
-  modal.classList.add('hidden');
-}
-if (closeModalBtn) closeModalBtn.onclick = closeModal;
-if (closeModalX) closeModalX.onclick = closeModal;
-window.onclick = (e) => {
-  if (e.target == modal) closeModal();
-};
-
-function openModal(incident) {
-  const stUI = stateUI(normalizeStatus(incident.status));
-
-  modalTitle.textContent = `Detalle: ${(incident.tipo || '').replaceAll('_', ' ')}`;
-  modalSub.textContent = `ID: ${incident.id} · ${fmtDate(incident.received_at)}`;
-
-  modalBody.innerHTML = `
-    <div class="detailGrid">
-      <div><b>Estado:</b> <span class="${stUI.cls}" style="padding:2px 6px; border-radius:4px;">${stUI.label}</span></div>
-      <div><b>Severidad:</b> ${scoreLabel(incident.smart_score ?? 0)}</div>
-      <div><b>GPS:</b> ${fmtCoord(incident.latitude)}, ${fmtCoord(incident.longitude)}</div>
-      <div style="grid-column: span 2; margin-top: 10px;">
-        <b>Descripción:</b><br>
-        <p style="background:#f5f5f5; padding:8px; border-radius:4px;">
-            ${incident.descripcion || 'Sin descripción.'}
-        </p>
-      </div>
-    </div>
-  `;
-  modal.classList.remove('hidden');
-}
-
-// ==========================================
-// 7. RENDERIZADO DE TARJETAS
+// 7. RENDER TARJETAS
 // ==========================================
 function renderCards(data) {
   cardsEl.innerHTML = '';
   emptyEl.textContent = '';
 
-  let filtered = data.map((i) => ({
+  let filtered = data.map(i => ({
     ...i,
-    statusNorm: normalizeStatus(i.status),
+    statusNorm: normalizeStatus(i.status)
   }));
 
   if (CURRENT_FILTER !== 'ALL') {
-    let filterKey = CURRENT_FILTER;
-    if (CURRENT_FILTER === 'NUEVA') filterKey = 'ABIERTO';
-    filtered = filtered.filter((i) => i.statusNorm === filterKey);
+    const f = CURRENT_FILTER === 'NUEVA' ? 'ABIERTO' : CURRENT_FILTER;
+    filtered = filtered.filter(i => i.statusNorm === f);
   }
 
   filtered.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
@@ -264,25 +170,9 @@ function renderCards(data) {
     return;
   }
 
-  filtered.forEach((i) => {
+  filtered.forEach(i => {
     const label = scoreLabel(i.smart_score ?? 0);
     const state = stateUI(i.statusNorm);
-
-    let actionArea = '';
-
-    if (CAN_CHANGE_STATUS) {
-      if (i.statusNorm === 'ABIERTO') {
-        actionArea = `<button class="btn ok"
-          onclick="event.stopPropagation(); changeStatus('${i.id}','EN_ATENCION', this)">
-          Atender</button>`;
-      } else if (i.statusNorm === 'EN_ATENCION') {
-        actionArea = `<button class="btn danger"
-          onclick="event.stopPropagation(); changeStatus('${i.id}','CERRADO', this)">
-          Finalizar</button>`;
-      } else {
-        actionArea = `<span class="badge-closed">Cerrado</span>`;
-      }
-    }
 
     const card = document.createElement('div');
     card.className = 'cardItem';
@@ -297,28 +187,20 @@ function renderCards(data) {
         </div>
         <span class="badge ${sevColor(label)}">${label}</span>
       </div>
-
-      <div class="muted small" style="margin-top:6px;">
-        📍 <b>${fmtCoord(i.latitude)}</b>, <b>${fmtCoord(i.longitude)}</b>
-      </div>
-
-      <div class="actions">${actionArea}</div>
+      <div class="muted small">📍 ${fmtCoord(i.latitude)}, ${fmtCoord(i.longitude)}</div>
     `;
 
-    card.onclick = () => openModal(i);
     cardsEl.appendChild(card);
   });
 }
 
 // ==========================================
-// 8. MAPA (LEAFLET)
+// 8. MAPA (🔥 FIX DEFINITIVO AQUÍ)
 // ==========================================
 function initMap() {
   if (map) return;
   map = L.map('map').setView([-9.19, -75.015], 5);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap',
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
   markersLayer = L.layerGroup().addTo(map);
 }
 
@@ -326,8 +208,9 @@ function updateMap(incidents) {
   if (!map) initMap();
   markersLayer.clearLayers();
 
-  incidents.forEach((i) => {
-    if (!i.latitude || !i.longitude) return;
+  incidents.forEach(i => {
+    // 🔥 FIX DEFINITIVO (NO filtrar 0, solo null)
+    if (i.latitude === null || i.longitude === null) return;
     if (normalizeStatus(i.status) === 'CERRADO') return;
 
     const sc = i.smart_score ?? 0;
@@ -337,174 +220,58 @@ function updateMap(incidents) {
       radius: 10,
       color: 'white',
       fillColor: col,
-      fillOpacity: 0.9,
-    })
-      .bindPopup(i.tipo)
-      .addTo(markersLayer);
+      fillOpacity: 0.9
+    }).addTo(markersLayer);
   });
 }
 
 // ==========================================
-// 9. SOCKET.IO (CONEXIÓN ROBUSTA)
+// 9. SOCKET.IO
 // ==========================================
-function showToast(data) {
-  const container = document.getElementById('toastContainer');
-  if (!container) return;
-
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.innerHTML = `
-      <div class="toast-icon">🚨</div>
-      <div class="toast-content">
-          <strong>¡NUEVA ALERTA!</strong>
-          <p>${data.tipo}</p>
-      </div>
-  `;
-  container.appendChild(toast);
-  setTimeout(() => toast.remove(), 5000);
-}
-
 function initSocket() {
-  if (typeof io === 'undefined') {
-    console.error('Socket.io no cargado');
-    return;
-  }
-
-  socket = io('https://siaas-backend.onrender.com', {
-    transports: ['websocket', 'polling'],
-    reconnection: true,
+  socket = io(window.location.origin, {
+    transports: ['websocket', 'polling']
   });
 
-  const statusDiv = document.getElementById('connectionStatus');
-
-  socket.on('connect', () => {
-    console.log('🟢 Conectado a Socket.io');
-    if (statusDiv) {
-      statusDiv.innerHTML = '🟢 En línea (Tiempo Real)';
-      statusDiv.style.color = '#1e7e34';
-      statusDiv.style.backgroundColor = '#d4edda';
-    }
-  });
-
-  socket.on('disconnect', () => {
-    if (statusDiv) {
-      statusDiv.innerHTML = '🔴 Desconectado';
-      statusDiv.style.color = '#721c24';
-      statusDiv.style.backgroundColor = '#f8d7da';
-    }
-  });
-
-  socket.on('nueva_alerta', (newIncident) => {
-    const audio = document.getElementById('alertSound');
-    if (audio) {
-      audio.currentTime = 0;
-      audio.play().catch(() => console.log('Audio autoplay bloqueado'));
-    }
-
-    showToast(newIncident);
-    currentIncidents.unshift(newIncident);
+  socket.on('nueva_alerta', (i) => {
+    currentIncidents.unshift(i);
     renderCards(currentIncidents);
     updateMap(currentIncidents);
   });
 
-  socket.on('cambio_estado', () => {
-    load();
-  });
+  socket.on('cambio_estado', load);
 }
 
 // ==========================================
-// 10. EXPORTAR A CSV
-// ==========================================
-const btnExport = document.getElementById('btnExportCsv');
-if (btnExport) {
-  btnExport.onclick = () => {
-    if (!currentIncidents || currentIncidents.length === 0) {
-      alert('No hay incidentes para exportar.');
-      return;
-    }
-
-    let csvContent = 'data:text/csv;charset=utf-8,';
-    csvContent += 'ID;FECHA;TIPO;ESTADO;SEVERIDAD;LATITUD;LONGITUD;DESCRIPCION\n';
-
-    currentIncidents.forEach((item) => {
-      const fecha = new Date(item.received_at).toLocaleString('es-PE');
-      const tipo = (item.tipo || '').toUpperCase();
-      const score = item.smart_score ?? 0;
-      const severidad = score >= 51 ? 'GRAVE' : score >= 31 ? 'MEDIO' : 'LEVE';
-      const desc = (item.descripcion || '').replace(/(\r\n|\n|\r)/gm, ' ').replace(/;/g, ',');
-
-      const row = [
-        item.id,
-        fecha,
-        tipo,
-        normalizeStatus(item.status),
-        severidad,
-        item.latitude || 0,
-        item.longitude || 0,
-        desc,
-      ].join(';');
-
-      csvContent += row + '\n';
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    const fileName = `reporte_siaas_${new Date().toISOString().split('T')[0]}.csv`;
-    link.setAttribute('download', fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-}
-
-// ==========================================
-// 11. INICIALIZACIÓN Y CARGA SEGURA
+// 10. CARGA INICIAL
 // ==========================================
 async function load() {
   try {
-    const token = (localStorage.getItem('token') || '').trim();
-    if (!token) return;
-
     const res = await fetch('/incidents', {
-      headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+      headers: { 'Authorization': `Bearer ${SESSION.token}` }
     });
 
-    // ✅ A prueba de respuestas no JSON
-    const raw = await res.text();
-    let data = [];
-    try {
-      data = raw ? JSON.parse(raw) : [];
-    } catch (_) {
-      data = [];
-    }
-
     if (!res.ok) {
-      console.warn('⚠️ Error cargando incidentes:', res.status, data);
-
-      if (res.status === 401 || res.status === 403) {
-        clearSession();
+      if (res.status === 401) {
+        localStorage.clear();
         window.location.href = '/login.html';
       }
       return;
     }
 
+    const data = await res.json();
     if (Array.isArray(data)) {
       currentIncidents = data;
-      renderCards(currentIncidents);
-      updateMap(currentIncidents);
-    } else {
-      console.error('❌ Formato de datos incorrecto:', data);
+      renderCards(data);
+      updateMap(data);
     }
   } catch (e) {
-    console.error('❌ Error de red al cargar:', e);
+    console.error('Error cargando incidentes', e);
   }
 }
 
-// Arranque
+// ARRANQUE
 load();
 initMap();
 initSocket();
-
-// Polling cada 5 segundos para asegurar sincronización
 setInterval(load, 5000);
