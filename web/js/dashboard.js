@@ -61,6 +61,32 @@ let map, markersLayer;
 let socket;
 
 // ==========================================
+// 2.1 UI CONEXIÓN (para "Conectando..." / "Conectado")
+// ==========================================
+function setConnUI(state, extraText) {
+  // intenta varios ids/clases comunes sin romper si no existen
+  const candidates = [
+    document.getElementById('connStatus'),
+    document.getElementById('statusConn'),
+    document.getElementById('connectionStatus'),
+    document.getElementById('status'),
+    document.querySelector('.connStatus'),
+    document.querySelector('[data-conn-status]'),
+  ].filter(Boolean);
+
+  if (!candidates.length) return;
+
+  let text = 'Conectando...';
+  if (state === 'connected') text = 'Conectado';
+  if (state === 'disconnected') text = 'Desconectado';
+  if (state === 'error') text = 'Error de conexión';
+
+  if (extraText) text += ` (${extraText})`;
+
+  candidates.forEach(el => (el.textContent = text));
+}
+
+// ==========================================
 // 3. FILTROS
 // ==========================================
 document.querySelectorAll('[data-filter]').forEach(btn => {
@@ -107,7 +133,7 @@ function normalizeStatus(status) {
   const st = status.toString().toLowerCase();
 
   if (['abierto', 'pendiente', 'nueva'].includes(st)) return 'ABIERTO';
-  if (['en_atencion', 'en atención'].includes(st)) return 'EN_ATENCION';
+  if (['en_atencion', 'en atención', 'en_atencion '].includes(st)) return 'EN_ATENCION';
   if (['cerrado', 'cerrada', 'finalizado'].includes(st)) return 'CERRADO';
 
   return 'ABIERTO';
@@ -195,7 +221,7 @@ function renderCards(data) {
 }
 
 // ==========================================
-// 8. MAPA (🔥 FIX DEFINITIVO AQUÍ)
+// 8. MAPA
 // ==========================================
 function initMap() {
   if (map) return;
@@ -209,8 +235,9 @@ function updateMap(incidents) {
   markersLayer.clearLayers();
 
   incidents.forEach(i => {
-    // 🔥 FIX DEFINITIVO (NO filtrar 0, solo null)
-    if (i.latitude === null || i.longitude === null) return;
+    // NO filtrar 0, solo null/undefined
+    if (i.latitude === null || i.latitude === undefined) return;
+    if (i.longitude === null || i.longitude === undefined) return;
     if (normalizeStatus(i.status) === 'CERRADO') return;
 
     const sc = i.smart_score ?? 0;
@@ -229,17 +256,53 @@ function updateMap(incidents) {
 // 9. SOCKET.IO
 // ==========================================
 function initSocket() {
+  setConnUI('connecting');
+
+  // ✅ mismo origen (https en Render) + reconexión estable
   socket = io(window.location.origin, {
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 800,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+  });
+
+  socket.on('connect', () => {
+    console.log('✅ Socket conectado:', socket.id);
+    setConnUI('connected');
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.warn('⚠️ Socket desconectado:', reason);
+    setConnUI('disconnected', reason);
+  });
+
+  socket.on('connect_error', (err) => {
+    console.error('❌ Socket connect_error:', err?.message || err);
+    setConnUI('error', err?.message || 'connect_error');
   });
 
   socket.on('nueva_alerta', (i) => {
+    console.log('🚨 nueva_alerta:', i);
+
     currentIncidents.unshift(i);
     renderCards(currentIncidents);
     updateMap(currentIncidents);
+
+    // Hooks opcionales (si existen en tu proyecto)
+    try {
+      if (typeof window.playAlarmSound === 'function') window.playAlarmSound(i);
+      if (typeof window.showToast === 'function') window.showToast(i);
+      if (typeof window.showAlarm === 'function') window.showAlarm(i);
+    } catch (e) {
+      console.warn('⚠️ Error ejecutando hooks de alarma:', e);
+    }
   });
 
-  socket.on('cambio_estado', load);
+  socket.on('cambio_estado', () => {
+    load();
+  });
 }
 
 // ==========================================
