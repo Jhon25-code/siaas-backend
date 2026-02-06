@@ -2,29 +2,27 @@
 <html lang="es">
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SIAAS | Acceso</title>
 
-    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
 
-    <link rel="stylesheet" href="/css/styles.css" />
+    <!-- RUTA RELATIVA (Android Studio + Express friendly) -->
+    <link rel="stylesheet" href="./css/styles.css" />
 </head>
 
 <body class="loginPage">
 
-<script>
+<script defer>
     try {
-      const token = localStorage.getItem('token');
-      // Verificación básica de que el token existe y parece un JWT
-      if (token && token.split('.').length === 3) {
-        window.location.href = '/dashboard.html';
-      } else {
-        localStorage.clear(); // Si es inválido, limpiar
-      }
-    } catch (e) {
-      localStorage.clear();
+        const token = localStorage.getItem('token');
+        // Validación básica de JWT
+        if (token && token.split('.').length === 3) {
+            window.location.href = './dashboard.html';
+        } else {
+            localStorage.clear();
+        }
+    } catch {
+        localStorage.clear();
     }
 </script>
 
@@ -36,7 +34,7 @@
         <header class="brand">
             <img
                     class="brandLogo"
-                    src="/images/logo_siaas.png"
+                    src="./images/logo_siaas.png"
                     alt="Logo SIAAS"
                     onerror="this.style.display='none'"
             />
@@ -51,7 +49,7 @@
         <form
                 id="loginForm"
                 autocomplete="off"
-                autocapitalize="none"
+                autocapitalize="off"
                 spellcheck="false"
         >
             <label for="username">Usuario</label>
@@ -77,7 +75,12 @@
                 Ingresar
             </button>
 
-            <p id="msg" class="error" aria-live="polite" style="color: #d32f2f; margin-top: 1rem; font-weight: 500;"></p>
+            <p
+                    id="msg"
+                    class="error"
+                    aria-live="polite"
+                    style="color:#d32f2f;margin-top:1rem;font-weight:500;"
+            ></p>
         </form>
 
         <footer class="loginFooter">
@@ -87,30 +90,29 @@
     </section>
 </main>
 
-<script>
-    document.getElementById('year').textContent = new Date().getFullYear();
+<script defer>
+    document.getElementById('year').textContent =
+        new Date().getFullYear();
 </script>
 
-<script>
+<script defer>
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
-        e.preventDefault(); // Evitar recarga de página
+        e.preventDefault();
 
-        const msgElement = document.getElementById('msg');
-        const btnSubmit = document.getElementById('btnSubmit');
+        const msg = document.getElementById('msg');
+        const btn = document.getElementById('btnSubmit');
         const username = document.getElementById('username').value.trim();
         const password = document.getElementById('password').value.trim();
 
-        // 1. Estado de carga visual
-        msgElement.textContent = '';
-        btnSubmit.disabled = true;
-        btnSubmit.textContent = 'Verificando...';
-        btnSubmit.style.opacity = '0.7';
+        msg.textContent = '';
+        btn.disabled = true;
+        btn.textContent = 'Verificando...';
+        btn.style.opacity = '0.7';
 
         try {
-            // 2. Limpieza preventiva de localStorage
+            // Limpieza preventiva
             localStorage.clear();
 
-            // 3. Petición al Backend
             const response = await fetch('/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -118,32 +120,24 @@
             });
 
             const data = await response.json();
-
             if (!response.ok) {
-                throw new Error(data.message || 'Error de credenciales');
+                throw new Error(data.message || 'Credenciales inválidas');
             }
 
-            // 4. ✅ ÉXITO: Guardar el token correctamente
+            // Guardar sesión
             localStorage.setItem('token', data.token);
             localStorage.setItem('role', data.role);
             localStorage.setItem('name', data.name);
             localStorage.setItem('zone', data.zone || '');
 
-            console.log("Login exitoso. Redirigiendo...");
-
-            // 5. Redirección forzada
-            window.location.replace('/dashboard.html');
+            // Redirección segura
+            window.location.replace('./dashboard.html');
 
         } catch (error) {
-            console.error("Error Login:", error);
-
-            // Mostrar error al usuario
-            msgElement.textContent = "❌ " + error.message;
-
-            // Restaurar botón
-            btnSubmit.disabled = false;
-            btnSubmit.textContent = 'Ingresar';
-            btnSubmit.style.opacity = '1';
+            msg.textContent = '❌ ' + error.message;
+            btn.disabled = false;
+            btn.textContent = 'Ingresar';
+            btn.style.opacity = '1';
         }
     });
 </script>
