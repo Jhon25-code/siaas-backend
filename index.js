@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const path = require('path');
@@ -15,7 +16,7 @@ const server = http.createServer(app);
 // Configuración Socket.io (Permisiva para evitar desconexiones)
 const io = new Server(server, {
   cors: { origin: "*", methods: ["GET", "POST", "PATCH"] },
-  transports: ['websocket', 'polling'] // Forzar transporte estable
+  transports: ['websocket', 'polling']
 });
 
 const PORT = process.env.PORT || 3000;
@@ -62,30 +63,68 @@ app.get('/login.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'login.html
 app.get('/dashboard.html', (req, res) => res.sendFile(path.join(WEB_DIR, 'dashboard.html')));
 
 // ---------------------------------------------------------
-// 👤 USUARIOS (CONTRASEÑA ACTUALIZADA: Siaas2026)
+// 👤 USUARIOS
 // ---------------------------------------------------------
-// Usamos una contraseña más fuerte para evitar bloqueo de Chrome
+// Contraseña “oficial” del sistema (web)
 const PASSWORD_HASH = bcrypt.hashSync('Siaas2026', 10);
+
+// ✅ Contraseña DEMO solo para trabajador (Flutter) - opcional
+const PASSWORD_HASH_TRABAJADOR_DEMO = bcrypt.hashSync('123456', 10);
 
 const users = [
   { id: 1, username: 'topico', passwordHash: PASSWORD_HASH, role: 'TOPICO', name: 'Tópico Central' },
   { id: 2, username: 'admin', passwordHash: PASSWORD_HASH, role: 'ADMIN', name: 'Administrador' },
   { id: 3, username: 'supervisor', passwordHash: PASSWORD_HASH, role: 'SUPERVISOR', name: 'Supervisor Zona 1' },
-  { id: 4, username: 'trabajador', passwordHash: PASSWORD_HASH, role: 'TRABAJADOR', name: 'Juan Perez' }
+
+  // ✅ trabajador acepta Siaas2026 (web) y 123456 (demo móvil)
+  {
+    id: 4,
+    username: 'trabajador',
+    passwordHash: PASSWORD_HASH,
+    passwordHashAlt: PASSWORD_HASH_TRABAJADOR_DEMO,
+    role: 'TRABAJADOR',
+    name: 'Juan Perez'
+  }
 ];
 
-// Login
+// ---------------------------------------------------------
+// 🔐 LOGIN (Más compatible con Flutter)
+// ---------------------------------------------------------
 app.post('/auth/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = users.find(u => u.username === username);
+  try {
+    // Aceptar varios nombres de campos (compatibilidad)
+    const username =
+      req.body.username ||
+      req.body.usuario ||
+      req.body.email ||
+      '';
 
-  // Verificación de contraseña
-  if (!user || !bcrypt.compareSync(password, user.passwordHash)) {
-    return res.status(401).json({ message: 'Credenciales incorrectas' });
+    const password =
+      req.body.password ||
+      req.body.contrasena ||
+      '';
+
+    const user = users.find(u => u.username === username);
+
+    // Verificación de contraseña (incluye alternativa demo solo para trabajador)
+    const okMain = user && bcrypt.compareSync(password, user.passwordHash);
+    const okAlt = user && user.passwordHashAlt && bcrypt.compareSync(password, user.passwordHashAlt);
+
+    if (!user || (!okMain && !okAlt)) {
+      return res.status(401).json({ message: 'Credenciales incorrectas' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, role: user.role, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    return res.json({ token, role: user.role, name: user.name });
+  } catch (e) {
+    console.error("❌ ERROR EN /auth/login:", e);
+    return res.status(500).json({ message: 'Error interno en login' });
   }
-
-  const token = jwt.sign({ id: user.id, role: user.role, name: user.name }, JWT_SECRET);
-  res.json({ token, role: user.role, name: user.name });
 });
 
 // =========================================================
@@ -100,20 +139,18 @@ app.post('/incidents', auth(['TRABAJADOR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (r
   // --- LÓGICA MAESTRA DE SEVERIDAD ---
   let score = 10; // Default: Verde (Leve)
 
-  // Juntamos todos los campos posibles en una sola cadena de texto para buscar palabras clave
   const analisis = JSON.stringify(data).toUpperCase();
 
   if (analisis.includes('GRAVE') || analisis.includes('ALTA') || analisis.includes('HIGH') || analisis.includes('CRITICA')) {
-    score = 60; // 🔴 ROJO
+    score = 60;
   } else if (analisis.includes('MEDIO') || analisis.includes('MEDIA') || analisis.includes('MEDIUM') || analisis.includes('MODERADA')) {
-    score = 40; // 🟠 NARANJA
+    score = 40;
   } else {
-    score = 10; // 🟢 VERDE
+    score = 10;
   }
 
-  // Si el móvil envía explícitamente el número, le hacemos caso
   if (typeof data.smart_score === 'number' && data.smart_score > 0) {
-      score = data.smart_score;
+    score = data.smart_score;
   }
 
   const incident = {
@@ -123,12 +160,13 @@ app.post('/incidents', auth(['TRABAJADOR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (r
     latitude: data.latitude || 0,
     longitude: data.longitude || 0,
     received_at: new Date().toISOString(),
-    status: 'ABIERTO', // Estado inicial correcto
+    status: 'ABIERTO',
     smart_score: score,
-    zone: req.user.zone || 'ZONA_1'
+    zone: (req.user && req.user.zone) ? req.user.zone : 'ZONA_1'
   };
 
-  const sql = `INSERT INTO incidents (id, tipo, descripcion, latitude, longitude, received_at, status, smart_score, zone) VALUES (?,?,?,?,?,?,?,?,?)`;
+  const sql = `INSERT INTO incidents (id, tipo, descripcion, latitude, longitude, received_at, status, smart_score, zone)
+               VALUES (?,?,?,?,?,?,?,?,?)`;
 
   db.run(sql, Object.values(incident), function(err) {
     if (err) {
@@ -138,7 +176,6 @@ app.post('/incidents', auth(['TRABAJADOR', 'TOPICO', 'SUPERVISOR', 'ADMIN']), (r
 
     console.log(`✅ Incidente Guardado | Tipo: ${incident.tipo} | Severidad Detectada: ${score}`);
 
-    // Notificar al Dashboard
     io.emit('nueva_alerta', incident);
 
     res.json({ ok: true, id: incident.id });
@@ -180,6 +217,12 @@ app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req
 });
 
 app.get('/health', (req, res) => res.json({ status: 'OK', db: 'SQLite' }));
+
+// ✅ Manejo global de errores (evita HTML raro)
+app.use((err, req, res, next) => {
+  console.error("❌ ERROR GLOBAL:", err);
+  res.status(500).json({ message: "Error interno" });
+});
 
 // Iniciar Servidor
 server.listen(PORT, '0.0.0.0', () => {
