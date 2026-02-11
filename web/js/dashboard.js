@@ -619,12 +619,17 @@ function applyHashView() {
 }
 
 // ==========================================
-// 12. SONIDO DE ALERTA
+// 12. SONIDO DE ALERTA (VERSIÓN ROBUSTA)
 // ==========================================
+
+let audioUnlocked = false;
+
 window.playAlarmSound = function () {
   const audio = document.getElementById('alertSound');
-  if (!audio) {
-    console.warn('❌ No existe #alertSound');
+  if (!audio) return;
+
+  if (!audioUnlocked) {
+    console.warn('🔇 Audio aún bloqueado por el navegador');
     return;
   }
 
@@ -635,20 +640,34 @@ window.playAlarmSound = function () {
       console.log('🔊 Sonido reproducido');
     })
     .catch(err => {
-      console.warn('🔇 Navegador bloqueó autoplay:', err);
+      console.warn('🔇 Error al reproducir sonido:', err);
     });
 };
-// 12.1 Desbloquea audio después del primer click
-document.addEventListener('click', () => {
+
+// 🔓 Desbloqueo REAL del audio con la primera interacción
+function unlockAudio() {
   const audio = document.getElementById('alertSound');
-  if (audio) {
-    audio.play().then(() => {
+  if (!audio) return;
+
+  audio.play()
+    .then(() => {
       audio.pause();
       audio.currentTime = 0;
-      console.log('🔓 Audio desbloqueado');
-    }).catch(() => {});
-  }
-}, { once: true });
+      audioUnlocked = true;
+      console.log('🔓 Audio desbloqueado correctamente');
+    })
+    .catch(() => {
+      console.warn('⚠️ No se pudo desbloquear audio');
+    });
+
+  // Solo una vez
+  document.removeEventListener('click', unlockAudio);
+  document.removeEventListener('keydown', unlockAudio);
+}
+
+// Escuchar primera interacción REAL del usuario
+document.addEventListener('click', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
 
 
 window.addEventListener('hashchange', applyHashView);
