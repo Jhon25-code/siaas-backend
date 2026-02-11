@@ -424,11 +424,8 @@ body.loginPage {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
 }
+
 
 /* Overlay premium */
 .loginHero::after {
@@ -463,14 +460,9 @@ body.loginPage {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    90deg,
-    rgba(15, 23, 42, 0.55) 0%,
-    rgba(15, 23, 42, 0.35) 40%,
-    rgba(15, 23, 42, 0.15) 70%,
-    rgba(15, 23, 42, 0.05) 100%
-  );
+  background: rgba(15, 23, 42, 0.25); /* Oscurece ligeramente TODA la imagen */
 }
+
 
 
 .loginWrap {
