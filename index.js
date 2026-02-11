@@ -9,6 +9,10 @@ const http = require('http');
 const { Server } = require("socket.io");
 const auth = require('./middleware/auth');
 
+// ➕ REPORTES (solo PDF + Excel)
+const ExcelJS = require('exceljs');
+const PDFDocument = require('pdfkit');
+
 // Inicializar App
 const app = express();
 const server = http.createServer(app);
@@ -119,14 +123,10 @@ app.post('/auth/login', (req, res) => {
 });
 
 // =========================================================
-// 🚨 API INCIDENTES (🔥 FIX CLAVE AQUÍ 🔥)
+// 🚨 API INCIDENTES
 // =========================================================
-
-// 🔥 CAMBIO: solo validamos TOKEN, NO rol
 app.post('/incidents', auth(), (req, res) => {
   const data = req.body;
-
-  console.log("📥 [MÓVIL] Datos recibidos:", JSON.stringify(data));
 
   let score = 10;
   const analisis = JSON.stringify(data).toUpperCase();
@@ -163,14 +163,13 @@ app.post('/incidents', auth(), (req, res) => {
       return res.status(500).json({ error: "Error de base de datos" });
     }
 
-    console.log(`✅ Incidente guardado: ${incident.tipo}`);
     io.emit('nueva_alerta', incident);
     res.json({ ok: true, id: incident.id });
   });
 });
 
 // ---------------------------------------------------------
-// 📋 CONSULTAS (solo web)
+// 📋 CONSULTAS
 // ---------------------------------------------------------
 app.get('/incidents', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req, res) => {
   db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], (err, rows) => {
@@ -193,6 +192,118 @@ app.patch('/incidents/:id/status', auth(['TOPICO', 'SUPERVISOR', 'ADMIN']), (req
       res.json({ ok: true });
     }
   );
+});
+
+// =========================================================
+// 📊 REPORTES GERENCIALES (SOLO ADMIN/SUPERVISOR)
+// =========================================================
+const REPORT_ROLES = ['ADMIN', 'SUPERVISOR'];
+
+// EXCEL
+app.get('/reports/incidents/excel', auth(REPORT_ROLES), async (req, res) => {
+  try {
+    const wb = new ExcelJS.Workbook();
+    const sheet = wb.addWorksheet('Incidentes');
+
+    sheet.columns = [
+      { header: 'ID', key: 'id', width: 16 },
+      { header: 'Tipo', key: 'tipo', width: 22 },
+      { header: 'Descripción', key: 'descripcion', width: 40 },
+      { header: 'Latitud', key: 'latitude', width: 12 },
+      { header: 'Longitud', key: 'longitude', width: 12 },
+      { header: 'Fecha', key: 'received_at', width: 22 },
+      { header: 'Estado', key: 'status', width: 14 },
+      { header: 'Score', key: 'smart_score', width: 10 },
+      { header: 'Zona', key: 'zone', width: 12 },
+    ];
+
+    db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], async (err, rows) => {
+      if (err) {
+        console.error('❌ ERROR BD (excel):', err.message);
+        return res.status(500).json({ error: 'Error de base de datos' });
+      }
+
+      (rows || []).forEach(r => sheet.addRow(r));
+
+      // estilo simple header
+      sheet.getRow(1).font = { bold: true };
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename=incidentes.xlsx'
+      );
+
+      await wb.xlsx.write(res);
+      res.end();
+    });
+  } catch (e) {
+    console.error('❌ ERROR generando excel:', e);
+    return res.status(500).json({ error: 'Error generando Excel' });
+  }
+});
+
+// PDF
+app.get('/reports/incidents/pdf', auth(REPORT_ROLES), (req, res) => {
+  try {
+    const doc = new PDFDocument({ margin: 40 });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=incidentes.pdf');
+
+    doc.pipe(res);
+
+    doc.fontSize(18).text('Reporte Gerencial de Incidentes', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(10).fillColor('#666')
+      .text(`Generado: ${new Date().toLocaleString('es-PE')}`, { align: 'center' });
+    doc.moveDown();
+
+    db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], (err, rows) => {
+      if (err) {
+        console.error('❌ ERROR BD (pdf):', err.message);
+        doc.fontSize(12).fillColor('red').text('Error leyendo base de datos.');
+        doc.end();
+        return;
+      }
+
+      const data = rows || [];
+      if (!data.length) {
+        doc.fontSize(12).fillColor('#111').text('No hay incidentes registrados.');
+        doc.end();
+        return;
+      }
+
+      doc.fillColor('#111');
+
+      data.forEach((i, idx) => {
+        // salto de página simple
+        if (doc.y > 740) doc.addPage();
+
+        const line1 = `${idx + 1}. ${String(i.tipo || '').replaceAll('_', ' ')}  |  ${i.zone || '—'}  |  ${i.status || '—'}  |  ${i.received_at || '—'}`;
+        const line2 = `   📍 ${i.latitude ?? '—'}, ${i.longitude ?? '—'}   |   Score: ${i.smart_score ?? '—'}`;
+        const desc = (i.descripcion || '').toString().trim();
+
+        doc.fontSize(11).text(line1);
+        doc.fontSize(10).fillColor('#444').text(line2);
+
+        if (desc) {
+          doc.fontSize(10).fillColor('#555').text(`   ${desc}`);
+        }
+
+        doc.moveDown(0.6);
+        doc.fillColor('#111');
+      });
+
+      doc.end();
+    });
+  } catch (e) {
+    console.error('❌ ERROR generando pdf:', e);
+    return res.status(500).json({ error: 'Error generando PDF' });
+  }
 });
 
 app.get('/health', (req, res) => res.json({ status: 'OK' }));

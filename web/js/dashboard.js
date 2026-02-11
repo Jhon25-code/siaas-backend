@@ -1,14 +1,44 @@
 // ==========================================
+// 0. STORAGE SEGURO (evita: Access to storage is not allowed)
+// ==========================================
+function safeLSGet(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (e) {
+    console.warn('⚠️ Storage bloqueado (getItem):', e);
+    return null;
+  }
+}
+
+function safeLSSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.warn('⚠️ Storage bloqueado (setItem):', e);
+    return false;
+  }
+}
+
+function safeLSClear() {
+  try {
+    window.localStorage.clear();
+  } catch (e) {
+    console.warn('⚠️ Storage bloqueado (clear):', e);
+  }
+}
+
+// ==========================================
 // 1. AUTENTICACIÓN Y SESIÓN
 // ==========================================
 function ensureAuth() {
-  const token = localStorage.getItem('token');
+  const token = safeLSGet('token');
   if (!token) window.location.href = '/login.html';
 }
 ensureAuth();
 
 document.getElementById('logout').onclick = () => {
-  localStorage.clear();
+  safeLSClear();
   window.location.href = '/login.html';
 };
 
@@ -28,7 +58,7 @@ function parseJwt(token) {
   }
 }
 
-const rawToken = localStorage.getItem('token') || '';
+const rawToken = safeLSGet('token') || '';
 const jwtData = rawToken ? parseJwt(rawToken) : null;
 
 const SESSION = {
@@ -46,11 +76,16 @@ if (whoEl) {
 const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
 if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
   alert('No autorizado');
-  localStorage.clear();
+  safeLSClear();
   window.location.href = '/login.html';
 }
 
 const CAN_CHANGE_STATUS = true;
+
+// ==========================================
+// 1.1 ROLES PARA REPORTES (SOLO SUPERVISOR/ADMIN)
+// ==========================================
+const REPORT_ROLES_ALLOWED = ['SUPERVISOR', 'ADMIN'];
 
 // ==========================================
 // 2. VARIABLES GLOBALES
@@ -64,7 +99,6 @@ let socket;
 // 2.1 UI CONEXIÓN (para "Conectando..." / "Conectado")
 // ==========================================
 function setConnUI(state, extraText) {
-  // intenta varios ids/clases comunes sin romper si no existen
   const candidates = [
     document.getElementById('connStatus'),
     document.getElementById('statusConn'),
@@ -84,6 +118,96 @@ function setConnUI(state, extraText) {
   if (extraText) text += ` (${extraText})`;
 
   candidates.forEach(el => (el.textContent = text));
+}
+
+// ==========================================
+// 2.2 UI REPORTES: mostrar/ocultar por rol + descargas
+// ==========================================
+function setReportsUI() {
+  const adminSection = document.getElementById('adminSection');
+  const reportsView = document.getElementById('reportsView');
+  const reportsBox = document.getElementById('reportsBox');
+
+  const canSeeReports = REPORT_ROLES_ALLOWED.includes(SESSION.role);
+
+  if (adminSection) adminSection.style.display = canSeeReports ? '' : 'none';
+  if (reportsBox) reportsBox.style.display = canSeeReports ? 'flex' : 'none';
+  if (reportsView && !canSeeReports) reportsView.style.display = 'none';
+
+  bindReportButtons(canSeeReports);
+}
+
+function setReportsMsg(text, isError = false) {
+  const el = document.getElementById('reportsMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.color = isError ? '#b91c1c' : '';
+}
+
+async function downloadReport(format) {
+  const canSeeReports = REPORT_ROLES_ALLOWED.includes(SESSION.role);
+  if (!canSeeReports) {
+    alert('No tienes permisos para descargar reportes.');
+    return;
+  }
+
+  try {
+    setReportsMsg(`⏳ Generando ${format.toUpperCase()}...`);
+
+    const url = `/reports/incidents/${format}`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${SESSION.token}` }
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        safeLSClear();
+        window.location.href = '/login.html';
+        return;
+      }
+      const t = await res.text().catch(() => '');
+      throw new Error(`Error ${res.status} ${t ? '- ' + t : ''}`);
+    }
+
+    const blob = await res.blob();
+
+    const ts = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+    const filename = format === 'excel'
+      ? `incidentes_${ts}.xlsx`
+      : `incidentes_${ts}.pdf`;
+
+    const a = document.createElement('a');
+    const objectUrl = URL.createObjectURL(blob);
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+
+    setReportsMsg(`✅ Descargado: ${filename}`);
+  } catch (e) {
+    console.error('❌ Error descargando reporte:', e);
+    setReportsMsg(`❌ ${e.message || e.toString()}`, true);
+    alert('Error descargando reporte. Revisa consola.');
+  }
+}
+
+function bindReportButtons(canSeeReports) {
+  const btnExportPdf = document.getElementById('btnExportPdf');
+  const btnExportExcel = document.getElementById('btnExportExcel');
+
+  const btnReportPdf = document.getElementById('btnReportPdf');
+  const btnReportExcel = document.getElementById('btnReportExcel');
+
+  const all = [btnExportPdf, btnExportExcel, btnReportPdf, btnReportExcel].filter(Boolean);
+  all.forEach(b => b.disabled = !canSeeReports);
+
+  if (btnExportPdf) btnExportPdf.onclick = () => downloadReport('pdf');
+  if (btnExportExcel) btnExportExcel.onclick = () => downloadReport('excel');
+
+  if (btnReportPdf) btnReportPdf.onclick = () => downloadReport('pdf');
+  if (btnReportExcel) btnReportExcel.onclick = () => downloadReport('excel');
 }
 
 // ==========================================
@@ -235,7 +359,6 @@ function updateMap(incidents) {
   markersLayer.clearLayers();
 
   incidents.forEach(i => {
-    // NO filtrar 0, solo null/undefined
     if (i.latitude === null || i.latitude === undefined) return;
     if (i.longitude === null || i.longitude === undefined) return;
     if (normalizeStatus(i.status) === 'CERRADO') return;
@@ -258,7 +381,6 @@ function updateMap(incidents) {
 function initSocket() {
   setConnUI('connecting');
 
-  // ✅ mismo origen (https en Render) + reconexión estable
   socket = io(window.location.origin, {
     transports: ['websocket', 'polling'],
     reconnection: true,
@@ -290,7 +412,6 @@ function initSocket() {
     renderCards(currentIncidents);
     updateMap(currentIncidents);
 
-    // Hooks opcionales (si existen en tu proyecto)
     try {
       if (typeof window.playAlarmSound === 'function') window.playAlarmSound(i);
       if (typeof window.showToast === 'function') window.showToast(i);
@@ -316,7 +437,7 @@ async function load() {
 
     if (!res.ok) {
       if (res.status === 401) {
-        localStorage.clear();
+        safeLSClear();
         window.location.href = '/login.html';
       }
       return;
@@ -333,7 +454,43 @@ async function load() {
   }
 }
 
+// ==========================================
+// 11. NAVEGACIÓN SIMPLE POR HASH (alertas/historial/reportes)
+// ==========================================
+function applyHashView() {
+  const hash = (window.location.hash || '#alertas').toLowerCase();
+
+  const usersView = document.getElementById('usersView');
+  const reportsView = document.getElementById('reportsView');
+  const title = document.getElementById('title');
+
+  if (usersView) usersView.style.display = 'none';
+  if (reportsView) reportsView.style.display = 'none';
+
+  const canSeeReports = REPORT_ROLES_ALLOWED.includes(SESSION.role);
+
+  if (hash.includes('usuarios')) {
+    if (title) title.textContent = 'Usuarios';
+    if (usersView) usersView.style.display = '';
+  } else if (hash.includes('reportes')) {
+    if (title) title.textContent = 'Reportes';
+    if (reportsView && canSeeReports) reportsView.style.display = '';
+    if (reportsView && !canSeeReports) {
+      reportsView.style.display = 'none';
+      alert('No tienes permisos para ver reportes.');
+      window.location.hash = '#alertas';
+    }
+  } else {
+    if (title) title.textContent = 'Alertas registradas';
+  }
+}
+
+window.addEventListener('hashchange', applyHashView);
+
 // ARRANQUE
+setReportsUI();
+applyHashView();
+
 load();
 initMap();
 initSocket();

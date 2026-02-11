@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>SIAAS | Panel</title>
 
+    <!-- ✅ Evita 404 favicon.ico -->
+    <link rel="icon" href="images/logo_siaas.png" type="image/png" />
+
     <link rel="stylesheet" href="css/styles.css" />
 
     <link
@@ -22,7 +25,7 @@
         }
         .toast {
             background: white;
-            border-left: 6px solid #d32f2f; /* Rojo alerta */
+            border-left: 6px solid #d32f2f;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             padding: 16px 20px;
             border-radius: 8px;
@@ -55,12 +58,11 @@
 </head>
 <body>
 
-<script>
-    const token = localStorage.getItem('token');
-    if (!token) {
-      window.location.href = 'login.html';
-    }
-</script>
+<!-- ✅ IMPORTANTE:
+     Quitamos el script que leía localStorage aquí porque puede disparar:
+     "Access to storage is not allowed from this context."
+     La validación de sesión ya la hace dashboard.js con ensureAuth().
+-->
 
 <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 
@@ -81,8 +83,9 @@
             <a id="tab-alertas" class="active" href="#alertas">Alertas</a>
             <a id="tab-historial" href="#historial">Historial</a>
 
+            <!-- 🔐 SOLO SUPERVISOR / ADMIN -->
             <div id="adminSection" style="display:none;">
-                <div class="muted small" style="margin:14px 0 6px;">ADMIN</div>
+                <div class="muted small" style="margin:14px 0 6px;">GESTIÓN</div>
                 <a id="nav-users" href="#usuarios">Usuarios</a>
                 <a id="nav-reports" href="#reportes">Reportes</a>
             </div>
@@ -97,7 +100,12 @@
             <h1 id="title">Alertas registradas</h1>
 
             <div class="sectionActions">
-                <button class="btn" style="display:none;">Vista tabla</button>
+                <!-- 📊 REPORTES GERENCIALES (ATAJO) -->
+                <div id="reportsBox" style="display:none; gap:10px;">
+                    <button class="btn primary" id="btnReportPdf">PDF</button>
+                    <button class="btn" id="btnReportExcel">Excel</button>
+                </div>
+
                 <button class="btn primary" onclick="location.reload()">Actualizar</button>
             </div>
         </div>
@@ -121,44 +129,31 @@
         </div>
 
         <div id="cards" class="cardsGrid"></div>
-
         <div id="empty" style="text-align:center; color:#666; margin-top:20px; font-style:italic;"></div>
 
+        <!-- 👤 USUARIOS -->
         <div id="usersView" style="display:none; margin-top:18px;">
             <h2>Gestión de usuarios</h2>
-            <div class="muted small" style="margin-bottom:10px;">
-                Solo visible para ADMIN.
-            </div>
+            <div class="muted small">Solo visible para ADMIN.</div>
             <div id="usersTableWrap"></div>
         </div>
 
+        <!-- 📊 REPORTES -->
         <div id="reportsView" style="display:none; margin-top:18px;">
-            <h2>Reportes</h2>
+            <h2>Reportes Gerenciales</h2>
             <div class="muted small" style="margin-bottom:10px;">
-                Exporta incidentes (CSV).
+                Exportación de incidentes para análisis gerencial.
             </div>
-            <button class="btn primary" id="btnExportCsv">Descargar CSV</button>
+
+            <div style="display:flex; gap:12px;">
+                <button class="btn primary" id="btnExportPdf">Descargar PDF</button>
+                <button class="btn" id="btnExportExcel">Descargar Excel</button>
+            </div>
+
             <div class="muted small" style="margin-top:8px;" id="reportsMsg"></div>
         </div>
 
     </main>
-</div>
-
-<div id="modal" class="modal hidden">
-    <div class="modalBackdrop"></div>
-    <div class="modalCard">
-        <div class="modalHeader">
-            <div>
-                <div id="modalTitle" class="modalTitle">Detalle</div>
-                <div id="modalSub" class="muted small"></div>
-            </div>
-            <button class="iconBtn" id="closeModalX" onclick="document.getElementById('modal').classList.add('hidden')">✕</button>
-        </div>
-        <div id="modalBody" class="modalBody"></div>
-        <div class="modalFooter">
-            <button class="btn" id="closeModalBtn" onclick="document.getElementById('modal').classList.add('hidden')">Cerrar</button>
-        </div>
-    </div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
