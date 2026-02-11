@@ -618,6 +618,38 @@ function applyHashView() {
   }
 }
 
+// ==========================================
+// 12. SONIDO DE ALERTA
+// ==========================================
+window.playAlarmSound = function () {
+  const audio = document.getElementById('alertSound');
+  if (!audio) {
+    console.warn('❌ No existe #alertSound');
+    return;
+  }
+
+  audio.currentTime = 0;
+
+  audio.play()
+    .then(() => {
+      console.log('🔊 Sonido reproducido');
+    })
+    .catch(err => {
+      console.warn('🔇 Navegador bloqueó autoplay:', err);
+    });
+};
+// 12.1 Desbloquea audio después del primer click
+document.addEventListener('click', () => {
+  const audio = document.getElementById('alertSound');
+  if (audio) {
+    audio.play().then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      console.log('🔓 Audio desbloqueado');
+    }).catch(() => {});
+  }
+}, { once: true });
+
 
 window.addEventListener('hashchange', applyHashView);
 
