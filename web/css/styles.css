@@ -411,19 +411,21 @@ body.loginPage {
   margin: 0;
   height: 100vh;
   overflow: hidden;
-  display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  background: #0f172a;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 
 .loginHero {
-  position: relative;
-  height: 100vh;
+  position: fixed;
+  inset: 0;
   background-image: url("../images/bg_agroindustrial.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  z-index: -1;
 }
 
 
@@ -466,13 +468,15 @@ body.loginPage {
 
 
 .loginWrap {
-  height: 100vh;
+  width: 100%;
+  max-width: 520px;
+  margin-right: 6%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: transparent; /* IMPORTANTE */
 }
+
 
 
 .loginCard {
