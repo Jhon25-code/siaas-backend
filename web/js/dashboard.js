@@ -346,12 +346,13 @@ function renderCards(data) {
 
 
 // ==========================================
-// 8. MAPA (CORREGIDO Y ESTABLE)
+// 8. MAPA (VERSIÓN FINAL CORRECTA)
 // ==========================================
 function initMap() {
   if (map) return;
 
-  map = L.map('map').setView([-12.0464, -77.0428], 5);
+  // Vista inicial neutra (Perú)
+  map = L.map('map').setView([-9.19, -75.015], 5);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
@@ -364,12 +365,10 @@ function updateMap(incidents) {
   if (!map) initMap();
 
   markersLayer.clearLayers();
-
   const bounds = [];
 
   incidents.forEach(i => {
-    if (i.latitude === null || i.latitude === undefined) return;
-    if (i.longitude === null || i.longitude === undefined) return;
+    if (!i.latitude || !i.longitude) return;
     if (normalizeStatus(i.status) === 'CERRADO') return;
 
     const lat = parseFloat(i.latitude);
@@ -391,19 +390,19 @@ function updateMap(incidents) {
     bounds.push([lat, lng]);
   });
 
-  // 🔥 Ajuste automático de zoom
   if (bounds.length === 1) {
-    map.setView(bounds[0], 13);
+    map.setView(bounds[0], 14);
   } else if (bounds.length > 1) {
     map.fitBounds(bounds, { padding: [40, 40] });
   }
 }
+
 // ==========================================
-// 8.1 UBICACIÓN ACTUAL DEL USUARIO
+// 8.1 UBICACIÓN ACTUAL DEL USUARIO (MEJORADA)
 // ==========================================
 function locateUser() {
   if (!navigator.geolocation) {
-    console.warn("Geolocalización no soportada por este navegador.");
+    console.warn("Geolocalización no soportada.");
     return;
   }
 
@@ -414,21 +413,21 @@ function locateUser() {
 
       console.log("📍 Ubicación actual:", lat, lng);
 
-      // Marcador azul para usuario
-      const userMarker = L.circleMarker([lat, lng], {
+      L.circleMarker([lat, lng], {
         radius: 10,
         color: 'white',
         weight: 2,
         fillColor: 'blue',
         fillOpacity: 0.9
-      }).addTo(map);
-
-      userMarker.bindPopup("📍 Estás aquí").openPopup();
+      })
+      .addTo(map)
+      .bindPopup("📍 Estás aquí")
+      .openPopup();
 
       map.setView([lat, lng], 15);
     },
     (error) => {
-      console.warn("Error obteniendo ubicación:", error.message);
+      console.warn("Ubicación no disponible:", error.message);
     },
     {
       enableHighAccuracy: true,
@@ -437,6 +436,7 @@ function locateUser() {
     }
   );
 }
+
 
 
 // ==========================================
@@ -555,8 +555,9 @@ window.addEventListener('hashchange', applyHashView);
 setReportsUI();
 applyHashView();
 
+initMap();      // primero crear mapa
+locateUser();   // luego detectar ubicación
 load();
-initMap();
-locateUser(); // 🔥 AGREGAR ESTA LÍNEA
 initSocket();
 setInterval(load, 5000);
+
