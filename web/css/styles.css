@@ -419,16 +419,38 @@ body.loginPage {
 .loginHero {
   position: relative;
   height: 100vh;
-
-  background:
-    linear-gradient(
-      90deg,
-      rgba(15,23,42,0.85) 0%,
-      rgba(15,23,42,0.65) 40%,
-      rgba(15,23,42,0.35) 100%
-    ),
-    url('../images/bg_agroindustrial.jpg') center center / cover no-repeat;
+  background-image: url("../images/bg_agroindustrial.jpg");
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  padding: 60px;
+  overflow: hidden;
 }
+
+/* Overlay premium */
+.loginHero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(120deg, rgba(15,23,42,0.85), rgba(15,23,42,0.4)),
+    linear-gradient(90deg, rgba(31,111,59,0.4), transparent);
+  backdrop-filter: blur(2px);
+}
+
+/* Texto institucional */
+.loginHero::after {
+  content: "Monitoreo inteligente de emergencias agrícolas en tiempo real";
+  position: relative;
+  z-index: 2;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 600;
+  max-width: 500px;
+  line-height: 1.4;
+}
+
 
 .loginHero::after {
   content: "";
@@ -448,11 +470,24 @@ body.loginPage {
 
 .loginCard {
   width: min(480px, 100%);
-  background: #ffffff;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(12px);
   border-radius: 24px;
   padding: 40px;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  box-shadow:
+    0 40px 80px rgba(0,0,0,0.15),
+    0 10px 20px rgba(0,0,0,0.05);
+  border: 1px solid rgba(255,255,255,0.3);
 }
+.loginCard {
+  animation: fadeInLogin 0.6s ease;
+}
+
+@keyframes fadeInLogin {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 
 .brand { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
 .brandLogo { width: 56px; height: 56px; object-fit: contain; }
@@ -483,16 +518,21 @@ body.loginPage {
   margin-top: 24px;
   width: 100%;
   padding: 14px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: none;
-  background: linear-gradient(180deg, #1f7ae0, #155bb5);
+  background: linear-gradient(135deg, #1f6f3b, #2e8b57);
   color: #ffffff;
   font-weight: 700;
   font-size: 16px;
   cursor: pointer;
-  transition: transform 0.1s;
+  transition: all 0.25s ease;
+  box-shadow: 0 10px 25px rgba(31,111,59,0.35);
 }
-.btnPrimary:active { transform: scale(0.98); }
+
+.btnPrimary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(31,111,59,0.45);
+}
 
 .loginFooter { margin-top: 24px; text-align: center; font-size: 13px; color: #94a3b8; }
 
