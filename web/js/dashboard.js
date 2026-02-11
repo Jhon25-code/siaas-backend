@@ -1,23 +1,35 @@
 // ==========================================
-// 0. STORAGE SEGURO
+// 0. STORAGE SEGURO (evita: Access to storage is not allowed)
 // ==========================================
 function safeLSGet(key) {
-  try { return window.localStorage.getItem(key); }
-  catch { return null; }
+  try {
+    return window.localStorage.getItem(key);
+  } catch (e) {
+    console.warn('⚠️ Storage bloqueado (getItem):', e);
+    return null;
+  }
 }
 
 function safeLSSet(key, value) {
-  try { window.localStorage.setItem(key, value); return true; }
-  catch { return false; }
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.warn('⚠️ Storage bloqueado (setItem):', e);
+    return false;
+  }
 }
 
 function safeLSClear() {
-  try { window.localStorage.clear(); }
-  catch {}
+  try {
+    window.localStorage.clear();
+  } catch (e) {
+    console.warn('⚠️ Storage bloqueado (clear):', e);
+  }
 }
 
 // ==========================================
-// 1. AUTENTICACIÓN
+// 1. AUTENTICACIÓN Y SESIÓN
 // ==========================================
 function ensureAuth() {
   const token = safeLSGet('token');
@@ -34,7 +46,13 @@ function parseJwt(token) {
   try {
     const base64Url = token.split('.')[1];
     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64));
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
   } catch {
     return null;
   }
@@ -52,8 +70,7 @@ const SESSION = {
 
 const whoEl = document.getElementById('who');
 if (whoEl) {
-  whoEl.textContent =
-    `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;
+  whoEl.textContent = `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;
 }
 
 const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];
@@ -63,8 +80,15 @@ if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
   window.location.href = '/login.html';
 }
 
+const CAN_CHANGE_STATUS = true;
+
 // ==========================================
-// VARIABLES GLOBALES
+// 1.1 ROLES PARA REPORTES (SOLO SUPERVISOR/ADMIN)
+// ==========================================
+const REPORT_ROLES_ALLOWED = ['SUPERVISOR', 'ADMIN'];
+
+// ==========================================
+// 2. VARIABLES GLOBALES
 // ==========================================
 let CURRENT_FILTER = 'ALL';
 let currentIncidents = [];
@@ -72,7 +96,137 @@ let map, markersLayer;
 let socket;
 
 // ==========================================
-// HELPERS
+// 2.1 UI CONEXIÓN (para "Conectando..." / "Conectado")
+// ==========================================
+function setConnUI(state, extraText) {
+  const candidates = [
+    document.getElementById('connStatus'),
+    document.getElementById('statusConn'),
+    document.getElementById('connectionStatus'),
+    document.getElementById('status'),
+    document.querySelector('.connStatus'),
+    document.querySelector('[data-conn-status]'),
+  ].filter(Boolean);
+
+  if (!candidates.length) return;
+
+  let text = 'Conectando...';
+  if (state === 'connected') text = 'Conectado';
+  if (state === 'disconnected') text = 'Desconectado';
+  if (state === 'error') text = 'Error de conexión';
+
+  if (extraText) text += ` (${extraText})`;
+
+  candidates.forEach(el => (el.textContent = text));
+}
+
+// ==========================================
+// 2.2 UI REPORTES: mostrar/ocultar por rol + descargas
+// ==========================================
+function setReportsUI() {
+  const adminSection = document.getElementById('adminSection');
+  const reportsView = document.getElementById('reportsView');
+  const reportsBox = document.getElementById('reportsBox');
+
+  const canSeeReports = REPORT_ROLES_ALLOWED.includes(SESSION.role);
+
+  if (adminSection) adminSection.style.display = canSeeReports ? '' : 'none';
+  if (reportsBox) reportsBox.style.display = canSeeReports ? 'flex' : 'none';
+  if (reportsView && !canSeeReports) reportsView.style.display = 'none';
+
+  bindReportButtons(canSeeReports);
+}
+
+function setReportsMsg(text, isError = false) {
+  const el = document.getElementById('reportsMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.color = isError ? '#b91c1c' : '';
+}
+
+async function downloadReport(format) {
+  const canSeeReports = REPORT_ROLES_ALLOWED.includes(SESSION.role);
+  if (!canSeeReports) {
+    alert('No tienes permisos para descargar reportes.');
+    return;
+  }
+
+  try {
+    setReportsMsg(`⏳ Generando ${format.toUpperCase()}...`);
+
+    const url = `/reports/incidents/${format}`;
+    const res = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${SESSION.token}` }
+    });
+
+    if (!res.ok) {
+      if (res.status === 401) {
+        safeLSClear();
+        window.location.href = '/login.html';
+        return;
+      }
+      const t = await res.text().catch(() => '');
+      throw new Error(`Error ${res.status} ${t ? '- ' + t : ''}`);
+    }
+
+    const blob = await res.blob();
+
+    const ts = new Date().toISOString().slice(0, 19).replaceAll(':', '-');
+    const filename = format === 'excel'
+      ? `incidentes_${ts}.xlsx`
+      : `incidentes_${ts}.pdf`;
+
+    const a = document.createElement('a');
+    const objectUrl = URL.createObjectURL(blob);
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+
+    setReportsMsg(`✅ Descargado: ${filename}`);
+  } catch (e) {
+    console.error('❌ Error descargando reporte:', e);
+    setReportsMsg(`❌ ${e.message || e.toString()}`, true);
+    alert('Error descargando reporte. Revisa consola.');
+  }
+}
+
+function bindReportButtons(canSeeReports) {
+  const btnExportPdf = document.getElementById('btnExportPdf');
+  const btnExportExcel = document.getElementById('btnExportExcel');
+
+  const btnReportPdf = document.getElementById('btnReportPdf');
+  const btnReportExcel = document.getElementById('btnReportExcel');
+
+  const all = [btnExportPdf, btnExportExcel, btnReportPdf, btnReportExcel].filter(Boolean);
+  all.forEach(b => b.disabled = !canSeeReports);
+
+  if (btnExportPdf) btnExportPdf.onclick = () => downloadReport('pdf');
+  if (btnExportExcel) btnExportExcel.onclick = () => downloadReport('excel');
+
+  if (btnReportPdf) btnReportPdf.onclick = () => downloadReport('pdf');
+  if (btnReportExcel) btnReportExcel.onclick = () => downloadReport('excel');
+}
+
+// ==========================================
+// 3. FILTROS
+// ==========================================
+document.querySelectorAll('[data-filter]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+    CURRENT_FILTER = btn.dataset.filter;
+    renderCards(currentIncidents);
+    updateMap(currentIncidents);
+  });
+});
+
+const cardsEl = document.getElementById('cards');
+const emptyEl = document.getElementById('empty');
+
+// ==========================================
+// 4. HELPERS
 // ==========================================
 function scoreLabel(score) {
   if (score >= 51) return 'Grave';
@@ -87,8 +241,7 @@ function sevColor(label) {
 }
 
 function fmtDate(iso) {
-  try { return new Date(iso).toLocaleString('es-PE'); }
-  catch { return '—'; }
+  try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }
 }
 
 function fmtCoord(v) {
@@ -96,21 +249,56 @@ function fmtCoord(v) {
   return Number(v).toFixed(6);
 }
 
+// ==========================================
+// 5. NORMALIZACIÓN DE ESTADO
+// ==========================================
 function normalizeStatus(status) {
   if (!status) return 'ABIERTO';
   const st = status.toString().toLowerCase();
+
   if (['abierto', 'pendiente', 'nueva'].includes(st)) return 'ABIERTO';
-  if (['en_atencion', 'en atención'].includes(st)) return 'EN_ATENCION';
-  if (['cerrado', 'finalizado'].includes(st)) return 'CERRADO';
+  if (['en_atencion', 'en atención', 'en_atencion '].includes(st)) return 'EN_ATENCION';
+  if (['cerrado', 'cerrada', 'finalizado'].includes(st)) return 'CERRADO';
+
   return 'ABIERTO';
 }
 
-// ==========================================
-// RENDER TARJETAS
-// ==========================================
-const cardsEl = document.getElementById('cards');
-const emptyEl = document.getElementById('empty');
+function stateUI(statusNorm) {
+  if (statusNorm === 'EN_ATENCION') return { label: 'En atención', cls: 'state-attention' };
+  if (statusNorm === 'CERRADO') return { label: 'Cerrado', cls: 'state-closed' };
+  return { label: 'Abierto', cls: 'state-open' };
+}
 
+// ==========================================
+// 6. CAMBIO DE ESTADO
+// ==========================================
+async function changeStatus(id, nextStatus, btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳';
+  }
+
+  try {
+    const res = await fetch(`/incidents/${id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SESSION.token}`
+      },
+      body: JSON.stringify({ status: nextStatus })
+    });
+
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    await load();
+  } catch (e) {
+    alert('Error al cambiar estado');
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ==========================================
+// 7. RENDER TARJETAS
+// ==========================================
 function renderCards(data) {
   cardsEl.innerHTML = '';
   emptyEl.textContent = '';
@@ -120,6 +308,13 @@ function renderCards(data) {
     statusNorm: normalizeStatus(i.status)
   }));
 
+  if (CURRENT_FILTER !== 'ALL') {
+    const f = CURRENT_FILTER === 'NUEVA' ? 'ABIERTO' : CURRENT_FILTER;
+    filtered = filtered.filter(i => i.statusNorm === f);
+  }
+
+  filtered.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
+
   if (!filtered.length) {
     emptyEl.textContent = 'No hay alertas.';
     return;
@@ -127,6 +322,7 @@ function renderCards(data) {
 
   filtered.forEach(i => {
     const label = scoreLabel(i.smart_score ?? 0);
+    const state = stateUI(i.statusNorm);
 
     const card = document.createElement('div');
     card.className = 'cardItem';
@@ -137,25 +333,25 @@ function renderCards(data) {
         <div>
           <div class="title">${(i.tipo || '').replaceAll('_', ' ')}</div>
           <div class="muted small">${fmtDate(i.received_at)}</div>
+          <span class="stateBadge ${state.cls}">${state.label}</span>
         </div>
         <span class="badge ${sevColor(label)}">${label}</span>
       </div>
-      <div class="muted small">
-        📍 ${fmtCoord(i.latitude)}, ${fmtCoord(i.longitude)}
-      </div>
+      <div class="muted small">📍 ${fmtCoord(i.latitude)}, ${fmtCoord(i.longitude)}</div>
     `;
 
     cardsEl.appendChild(card);
   });
 }
 
+
 // ==========================================
-// MAPA CORREGIDO
+// 8. MAPA (CORREGIDO Y ESTABLE)
 // ==========================================
 function initMap() {
   if (map) return;
 
-  map = L.map('map').setView([-9.19, -75.015], 5);
+  map = L.map('map').setView([-12.0464, -77.0428], 5);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors'
@@ -168,9 +364,12 @@ function updateMap(incidents) {
   if (!map) initMap();
 
   markersLayer.clearLayers();
+
   const bounds = [];
 
   incidents.forEach(i => {
+    if (i.latitude === null || i.latitude === undefined) return;
+    if (i.longitude === null || i.longitude === undefined) return;
     if (normalizeStatus(i.status) === 'CERRADO') return;
 
     const lat = parseFloat(i.latitude);
@@ -181,7 +380,7 @@ function updateMap(incidents) {
     const sc = i.smart_score ?? 0;
     const col = sc >= 51 ? 'red' : sc >= 31 ? 'orange' : 'green';
 
-    const marker = L.circleMarker([lat, lng], {
+    L.circleMarker([lat, lng], {
       radius: 10,
       color: 'white',
       weight: 2,
@@ -189,16 +388,10 @@ function updateMap(incidents) {
       fillOpacity: 0.9
     }).addTo(markersLayer);
 
-    marker.bindPopup(`
-      <b>${(i.tipo || '').replaceAll('_', ' ')}</b><br>
-      Estado: ${normalizeStatus(i.status)}<br>
-      Score: ${sc}<br>
-      ${fmtDate(i.received_at)}
-    `);
-
     bounds.push([lat, lng]);
   });
 
+  // 🔥 Ajuste automático de zoom
   if (bounds.length === 1) {
     map.setView(bounds[0], 13);
   } else if (bounds.length > 1) {
@@ -206,25 +399,60 @@ function updateMap(incidents) {
   }
 }
 
+
 // ==========================================
-// SOCKET.IO
+// 9. SOCKET.IO
 // ==========================================
 function initSocket() {
-  socket = io(window.location.origin);
+  setConnUI('connecting');
 
-  socket.on('connect', () => console.log('Socket conectado'));
+  socket = io(window.location.origin, {
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 800,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+  });
+
+  socket.on('connect', () => {
+    console.log('✅ Socket conectado:', socket.id);
+    setConnUI('connected');
+  });
+
+  socket.on('disconnect', (reason) => {
+    console.warn('⚠️ Socket desconectado:', reason);
+    setConnUI('disconnected', reason);
+  });
+
+  socket.on('connect_error', (err) => {
+    console.error('❌ Socket connect_error:', err?.message || err);
+    setConnUI('error', err?.message || 'connect_error');
+  });
 
   socket.on('nueva_alerta', (i) => {
+    console.log('🚨 nueva_alerta:', i);
+
     currentIncidents.unshift(i);
     renderCards(currentIncidents);
     updateMap(currentIncidents);
+
+    try {
+      if (typeof window.playAlarmSound === 'function') window.playAlarmSound(i);
+      if (typeof window.showToast === 'function') window.showToast(i);
+      if (typeof window.showAlarm === 'function') window.showAlarm(i);
+    } catch (e) {
+      console.warn('⚠️ Error ejecutando hooks de alarma:', e);
+    }
   });
 
-  socket.on('cambio_estado', () => load());
+  socket.on('cambio_estado', () => {
+    load();
+  });
 }
 
 // ==========================================
-// CARGA INICIAL
+// 10. CARGA INICIAL
 // ==========================================
 async function load() {
   try {
@@ -232,7 +460,13 @@ async function load() {
       headers: { 'Authorization': `Bearer ${SESSION.token}` }
     });
 
-    if (!res.ok) return;
+    if (!res.ok) {
+      if (res.status === 401) {
+        safeLSClear();
+        window.location.href = '/login.html';
+      }
+      return;
+    }
 
     const data = await res.json();
     if (Array.isArray(data)) {
@@ -246,8 +480,42 @@ async function load() {
 }
 
 // ==========================================
-// ARRANQUE
+// 11. NAVEGACIÓN SIMPLE POR HASH (alertas/historial/reportes)
 // ==========================================
+function applyHashView() {
+  const hash = (window.location.hash || '#alertas').toLowerCase();
+
+  const usersView = document.getElementById('usersView');
+  const reportsView = document.getElementById('reportsView');
+  const title = document.getElementById('title');
+
+  if (usersView) usersView.style.display = 'none';
+  if (reportsView) reportsView.style.display = 'none';
+
+  const canSeeReports = REPORT_ROLES_ALLOWED.includes(SESSION.role);
+
+  if (hash.includes('usuarios')) {
+    if (title) title.textContent = 'Usuarios';
+    if (usersView) usersView.style.display = '';
+  } else if (hash.includes('reportes')) {
+    if (title) title.textContent = 'Reportes';
+    if (reportsView && canSeeReports) reportsView.style.display = '';
+    if (reportsView && !canSeeReports) {
+      reportsView.style.display = 'none';
+      alert('No tienes permisos para ver reportes.');
+      window.location.hash = '#alertas';
+    }
+  } else {
+    if (title) title.textContent = 'Alertas registradas';
+  }
+}
+
+window.addEventListener('hashchange', applyHashView);
+
+// ARRANQUE
+setReportsUI();
+applyHashView();
+
 load();
 initMap();
 initSocket();
