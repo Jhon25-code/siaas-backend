@@ -346,12 +346,13 @@ function renderCards(data) {
 
 
 // ==========================================
-// 8. MAPA (VERSIÓN FINAL CORRECTA)
+// 8. MAPA (CONTROL DE CENTRADO CORRECTO)
 // ==========================================
+let userLocated = false;
+
 function initMap() {
   if (map) return;
 
-  // Vista inicial neutra (Perú)
   map = L.map('map').setView([-9.19, -75.015], 5);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -390,15 +391,18 @@ function updateMap(incidents) {
     bounds.push([lat, lng]);
   });
 
-  if (bounds.length === 1) {
-    map.setView(bounds[0], 14);
-  } else if (bounds.length > 1) {
-    map.fitBounds(bounds, { padding: [40, 40] });
+  // 🔥 Solo centrar si el usuario NO fue localizado aún
+  if (!userLocated) {
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 14);
+    } else if (bounds.length > 1) {
+      map.fitBounds(bounds, { padding: [40, 40] });
+    }
   }
 }
 
 // ==========================================
-// 8.1 UBICACIÓN ACTUAL DEL USUARIO (MEJORADA)
+// 8.1 UBICACIÓN ACTUAL DEL USUARIO
 // ==========================================
 function locateUser() {
   if (!navigator.geolocation) {
@@ -411,7 +415,7 @@ function locateUser() {
       const lat = position.coords.latitude;
       const lng = position.coords.longitude;
 
-      console.log("📍 Ubicación actual:", lat, lng);
+      userLocated = true; // 🔥 MARCAR QUE YA CENTRAMOS EN EL USUARIO
 
       L.circleMarker([lat, lng], {
         radius: 10,
@@ -436,7 +440,6 @@ function locateUser() {
     }
   );
 }
-
 
 
 // ==========================================
@@ -555,9 +558,10 @@ window.addEventListener('hashchange', applyHashView);
 setReportsUI();
 applyHashView();
 
-initMap();      // primero crear mapa
-locateUser();   // luego detectar ubicación
-load();
+initMap();
+locateUser();   // primero ubicamos al usuario
+load();         // luego cargamos incidentes
 initSocket();
 setInterval(load, 5000);
+
 
