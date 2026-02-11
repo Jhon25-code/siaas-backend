@@ -93,6 +93,7 @@ const REPORT_ROLES_ALLOWED = ['SUPERVISOR', 'ADMIN'];
 // 2. VARIABLES GLOBALES
 // ==========================================
 let CURRENT_FILTER = 'ALL';
+let CURRENT_VIEW = 'ALERTAS'; // ALERTAS | HISTORIAL
 let currentIncidents = [];
 let map, markersLayer;
 let socket;
@@ -312,6 +313,19 @@ function renderCards(data) {
     ...i,
     statusNorm: normalizeStatus(i.status)
   }));
+// 🔥 FILTRADO POR VISTA
+if (CURRENT_VIEW === 'ALERTAS') {
+  filtered = filtered.filter(i =>
+    i.statusNorm === 'ABIERTO' ||
+    i.statusNorm === 'EN_ATENCION'
+  );
+}
+
+if (CURRENT_VIEW === 'HISTORIAL') {
+  filtered = filtered.filter(i =>
+    i.statusNorm === 'CERRADO'
+  );
+}
 
   filtered.sort((a,b)=>
     new Date(b.received_at) - new Date(a.received_at)
@@ -582,7 +596,8 @@ function applyHashView() {
   if (hash.includes('usuarios')) {
     if (title) title.textContent = 'Usuarios';
     if (usersView) usersView.style.display = '';
-  } else if (hash.includes('reportes')) {
+  }
+  else if (hash.includes('reportes')) {
     if (title) title.textContent = 'Reportes';
     if (reportsView && canSeeReports) reportsView.style.display = '';
     if (reportsView && !canSeeReports) {
@@ -590,10 +605,19 @@ function applyHashView() {
       alert('No tienes permisos para ver reportes.');
       window.location.hash = '#alertas';
     }
-  } else {
+  }
+  else if (hash.includes('historial')) {
+    CURRENT_VIEW = 'HISTORIAL';
+    if (title) title.textContent = 'Historial de incidentes';
+    renderCards(currentIncidents);
+  }
+  else {
+    CURRENT_VIEW = 'ALERTAS';
     if (title) title.textContent = 'Alertas registradas';
+    renderCards(currentIncidents);
   }
 }
+
 
 window.addEventListener('hashchange', applyHashView);
 
