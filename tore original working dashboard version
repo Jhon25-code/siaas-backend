@@ -1,0 +1,210 @@
+[1mdiff --git a/web/js/dashboard.js b/web/js/dashboard.js[m
+[1mindex 740298b..c786925 100644[m
+[1m--- a/web/js/dashboard.js[m
+[1m+++ b/web/js/dashboard.js[m
+[36m@@ -1,31 +1,14 @@[m
+ // ==========================================[m
+[31m-// 0. STORAGE SEGURO (evita: Access to storage is not allowed)[m
+[32m+[m[32m// 0. STORAGE SEGURO[m
+ // ==========================================[m
+ function safeLSGet(key) {[m
+[31m-  try {[m
+[31m-    return window.localStorage.getItem(key);[m
+[31m-  } catch (e) {[m
+[31m-    console.warn('⚠️ Storage bloqueado (getItem):', e);[m
+[31m-    return null;[m
+[31m-  }[m
+[31m-}[m
+[31m-[m
+[31m-function safeLSSet(key, value) {[m
+[31m-  try {[m
+[31m-    window.localStorage.setItem(key, value);[m
+[31m-    return true;[m
+[31m-  } catch (e) {[m
+[31m-    console.warn('⚠️ Storage bloqueado (setItem):', e);[m
+[31m-    return false;[m
+[31m-  }[m
+[32m+[m[32m  try { return window.localStorage.getItem(key); }[m
+[32m+[m[32m  catch (e) { console.warn('⚠️ Storage bloqueado:', e); return null; }[m
+ }[m
+ [m
+ function safeLSClear() {[m
+[31m-  try {[m
+[31m-    window.localStorage.clear();[m
+[31m-  } catch (e) {[m
+[31m-    console.warn('⚠️ Storage bloqueado (clear):', e);[m
+[31m-  }[m
+[32m+[m[32m  try { window.localStorage.clear(); }[m
+[32m+[m[32m  catch (e) { console.warn('⚠️ Storage bloqueado:', e); }[m
+ }[m
+ [m
+ // ==========================================[m
+[36m@@ -47,15 +30,12 @@[m [mfunction parseJwt(token) {[m
+     const base64Url = token.split('.')[1];[m
+     const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');[m
+     const jsonPayload = decodeURIComponent([m
+[31m-      atob(base64)[m
+[31m-        .split('')[m
+[31m-        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))[m
+[31m-        .join('')[m
+[32m+[m[32m      atob(base64).split('').map(c =>[m
+[32m+[m[32m        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)[m
+[32m+[m[32m      ).join('')[m
+     );[m
+     return JSON.parse(jsonPayload);[m
+[31m-  } catch {[m
+[31m-    return null;[m
+[31m-  }[m
+[32m+[m[32m  } catch { return null; }[m
+ }[m
+ [m
+ const rawToken = safeLSGet('token') || '';[m
+[36m@@ -65,12 +45,13 @@[m [mconst SESSION = {[m
+   token: rawToken,[m
+   role: (jwtData?.role || '').toUpperCase(),[m
+   name: jwtData?.name || 'Usuario',[m
+[31m-  zone: jwtData?.zone || '',[m
+[32m+[m[32m  zone: jwtData?.zone || ''[m
+ };[m
+ [m
+ const whoEl = document.getElementById('who');[m
+ if (whoEl) {[m
+[31m-  whoEl.textContent = `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;[m
+[32m+[m[32m  whoEl.textContent =[m
+[32m+[m[32m    `${SESSION.name} (${SESSION.role})${SESSION.zone ? ' · ' + SESSION.zone : ''}`;[m
+ }[m
+ [m
+ const WEB_ROLES_ALLOWED = ['TOPICO', 'SUPERVISOR', 'ADMIN'];[m
+[36m@@ -80,11 +61,8 @@[m [mif (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {[m
+   window.location.href = '/login.html';[m
+ }[m
+ [m
+[31m-const CAN_CHANGE_STATUS = true;[m
+[31m-const REPORT_ROLES_ALLOWED = ['SUPERVISOR', 'ADMIN'];[m
+[31m-[m
+ // ==========================================[m
+[31m-// 2. VARIABLES GLOBALES[m
+[32m+[m[32m// VARIABLES GLOBALES[m
+ // ==========================================[m
+ let CURRENT_FILTER = 'ALL';[m
+ let currentIncidents = [];[m
+[36m@@ -92,7 +70,7 @@[m [mlet map, markersLayer;[m
+ let socket;[m
+ [m
+ // ==========================================[m
+[31m-// 3. HELPERS[m
+[32m+[m[32m// HELPERS[m
+ // ==========================================[m
+ function scoreLabel(score) {[m
+   if (score >= 51) return 'Grave';[m
+[36m@@ -107,7 +85,8 @@[m [mfunction sevColor(label) {[m
+ }[m
+ [m
+ function fmtDate(iso) {[m
+[31m-  try { return new Date(iso).toLocaleString('es-PE'); } catch { return '—'; }[m
+[32m+[m[32m  try { return new Date(iso).toLocaleString('es-PE'); }[m
+[32m+[m[32m  catch { return '—'; }[m
+ }[m
+ [m
+ function fmtCoord(v) {[m
+[36m@@ -116,75 +95,86 @@[m [mfunction fmtCoord(v) {[m
+ }[m
+ [m
+ // ==========================================[m
+[31m-// 4. NORMALIZACIÓN DE ESTADO[m
+[32m+[m[32m// NORMALIZACIÓN DE ESTADO[m
+ // ==========================================[m
+ function normalizeStatus(status) {[m
+   if (!status) return 'ABIERTO';[m
+   const st = status.toString().toLowerCase();[m
+[32m+[m[32m  if (['abierto','pendiente','nueva'].includes(st)) return 'ABIERTO';[m
+[32m+[m[32m  if (['en_atencion','en atención'].includes(st)) return 'EN_ATENCION';[m
+[32m+[m[32m  if (['cerrado','cerrada','finalizado'].includes(st)) return 'CERRADO';[m
+[32m+[m[32m  return 'ABIERTO';[m
+[32m+[m[32m}[m
+ [m
+[31m-  if (['abierto', 'pendiente', 'nueva'].includes(st)) return 'ABIERTO';[m
+[31m-  if (['en_atencion', 'en atención'].includes(st)) return 'EN_ATENCION';[m
+[31m-  if (['cerrado', 'cerrada', 'finalizado'].includes(st)) return 'CERRADO';[m
+[32m+[m[32m// ==========================================[m
+[32m+[m[32m// RENDER TARJETAS[m
+[32m+[m[32m// ==========================================[m
+[32m+[m[32mconst cardsEl = document.getElementById('cards');[m
+[32m+[m[32mconst emptyEl = document.getElementById('empty');[m
+ [m
+[31m-  return 'ABIERTO';[m
+[32m+[m[32mfunction renderCards(data) {[m
+[32m+[m[32m  cardsEl.innerHTML = '';[m
+[32m+[m[32m  emptyEl.textContent = '';[m
+[32m+[m
+[32m+[m[32m  if (!data.length) {[m
+[32m+[m[32m    emptyEl.textContent = 'No hay alertas.';[m
+[32m+[m[32m    return;[m
+[32m+[m[32m  }[m
+[32m+[m
+[32m+[m[32m  data.forEach(i => {[m
+[32m+[m[32m    const label = scoreLabel(i.smart_score ?? 0);[m
+[32m+[m
+[32m+[m[32m    const card = document.createElement('div');[m
+[32m+[m[32m    card.className = 'cardItem';[m
+[32m+[m[32m    card.style.borderLeft = `4px solid ${sevColor(label)}`;[m
+[32m+[m
+[32m+[m[32m    card.innerHTML = `[m
+[32m+[m[32m      <div class="title">${(i.tipo || '').replaceAll('_',' ')}</div>[m
+[32m+[m[32m      <div class="muted small">${fmtDate(i.received_at)}</div>[m
+[32m+[m[32m      <div class="muted small">[m
+[32m+[m[32m        📍 ${fmtCoord(i.latitude)}, ${fmtCoord(i.longitude)}[m
+[32m+[m[32m      </div>[m
+[32m+[m[32m    `;[m
+[32m+[m
+[32m+[m[32m    cardsEl.appendChild(card);[m
+[32m+[m[32m  });[m
+ }[m
+ [m
+ // ==========================================[m
+[31m-// 5. MAPA[m
+[32m+[m[32m// MAPA (VERSIÓN ORIGINAL)[m
+ // ==========================================[m
+ function initMap() {[m
+   if (map) return;[m
+   map = L.map('map').setView([-9.19, -75.015], 5);[m
+[31m-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);[m
+[32m+[m[32m  L.tileLayer([m
+[32m+[m[32m    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'[m
+[32m+[m[32m  ).addTo(map);[m
+   markersLayer = L.layerGroup().addTo(map);[m
+ }[m
+ [m
+[31m-// 🔥 FUNCIÓN CORREGIDA[m
+ function updateMap(incidents) {[m
+   if (!map) initMap();[m
+   markersLayer.clearLayers();[m
+ [m
+[31m-  const bounds = [];[m
+[31m-[m
+   incidents.forEach(i => {[m
+[31m-    if (i.latitude === null || i.latitude === undefined) return;[m
+[31m-    if (i.longitude === null || i.longitude === undefined) return;[m
+[32m+[m[32m    if (i.latitude == null || i.longitude == null) return;[m
+     if (normalizeStatus(i.status) === 'CERRADO') return;[m
+ [m
+[31m-    const lat = parseFloat(i.latitude);[m
+[31m-    const lng = parseFloat(i.longitude);[m
+[31m-[m
+[31m-    if (isNaN(lat) || isNaN(lng)) return;[m
+[31m-[m
+     const sc = i.smart_score ?? 0;[m
+[31m-    const col = sc >= 51 ? 'red' : sc >= 31 ? 'orange' : 'green';[m
+[32m+[m[32m    const col = sc >= 51 ? 'red' :[m
+[32m+[m[32m                sc >= 31 ? 'orange' : 'green';[m
+ [m
+[31m-    const marker = L.circleMarker([lat, lng], {[m
+[32m+[m[32m    L.circleMarker([i.latitude, i.longitude], {[m
+       radius: 10,[m
+       color: 'white',[m
+[31m-      weight: 2,[m
+       fillColor: col,[m
+       fillOpacity: 0.9[m
+     }).addTo(markersLayer);[m
+[31m-[m
+[31
