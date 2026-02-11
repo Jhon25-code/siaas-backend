@@ -398,6 +398,45 @@ function updateMap(incidents) {
     map.fitBounds(bounds, { padding: [40, 40] });
   }
 }
+// ==========================================
+// 8.1 UBICACIÓN ACTUAL DEL USUARIO
+// ==========================================
+function locateUser() {
+  if (!navigator.geolocation) {
+    console.warn("Geolocalización no soportada por este navegador.");
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      console.log("📍 Ubicación actual:", lat, lng);
+
+      // Marcador azul para usuario
+      const userMarker = L.circleMarker([lat, lng], {
+        radius: 10,
+        color: 'white',
+        weight: 2,
+        fillColor: 'blue',
+        fillOpacity: 0.9
+      }).addTo(map);
+
+      userMarker.bindPopup("📍 Estás aquí").openPopup();
+
+      map.setView([lat, lng], 15);
+    },
+    (error) => {
+      console.warn("Error obteniendo ubicación:", error.message);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    }
+  );
+}
 
 
 // ==========================================
@@ -518,5 +557,6 @@ applyHashView();
 
 load();
 initMap();
+locateUser(); // 🔥 AGREGAR ESTA LÍNEA
 initSocket();
 setInterval(load, 5000);
