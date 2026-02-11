@@ -619,55 +619,48 @@ function applyHashView() {
 }
 
 // ==========================================
-// 12. SONIDO DE ALERTA (VERSIÓN ROBUSTA)
+// 12. SONIDO DE ALERTA (VERSIÓN FINAL CORREGIDA)
 // ==========================================
 
-let audioUnlocked = false;
+let audioReady = false;
 
-window.playAlarmSound = function () {
-  const audio = document.getElementById('alertSound');
-  if (!audio) return;
+const alertAudio = document.getElementById('alertSound');
 
-  if (!audioUnlocked) {
-    console.warn('🔇 Audio aún bloqueado por el navegador');
-    return;
+if (!alertAudio) {
+  console.warn('❌ No existe #alertSound en el DOM');
+} else {
+
+  alertAudio.load();
+
+  function unlockAudio() {
+    alertAudio.play()
+      .then(() => {
+        alertAudio.pause();
+        alertAudio.currentTime = 0;
+        audioReady = true;
+        console.log('🔓 Audio desbloqueado correctamente');
+      })
+      .catch(err => {
+        console.warn('⚠️ No se pudo desbloquear audio:', err);
+      });
+
+    document.removeEventListener('pointerdown', unlockAudio);
   }
 
-  audio.currentTime = 0;
+  document.addEventListener('pointerdown', unlockAudio);
 
-  audio.play()
-    .then(() => {
-      console.log('🔊 Sonido reproducido');
-    })
-    .catch(err => {
-      console.warn('🔇 Error al reproducir sonido:', err);
-    });
-};
+  window.playAlarmSound = function () {
+    if (!audioReady) {
+      console.warn('🔇 Audio aún bloqueado');
+      return;
+    }
 
-// 🔓 Desbloqueo REAL del audio con la primera interacción
-function unlockAudio() {
-  const audio = document.getElementById('alertSound');
-  if (!audio) return;
-
-  audio.play()
-    .then(() => {
-      audio.pause();
-      audio.currentTime = 0;
-      audioUnlocked = true;
-      console.log('🔓 Audio desbloqueado correctamente');
-    })
-    .catch(() => {
-      console.warn('⚠️ No se pudo desbloquear audio');
-    });
-
-  // Solo una vez
-  document.removeEventListener('click', unlockAudio);
-  document.removeEventListener('keydown', unlockAudio);
+    alertAudio.currentTime = 0;
+    alertAudio.play()
+      .then(() => console.log('🔊 Sonido reproducido'))
+      .catch(err => console.warn('❌ Error reproduciendo sonido:', err));
+  };
 }
-
-// Escuchar primera interacción REAL del usuario
-document.addEventListener('click', unlockAudio);
-document.addEventListener('keydown', unlockAudio);
 
 
 window.addEventListener('hashchange', applyHashView);
