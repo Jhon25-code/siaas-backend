@@ -458,13 +458,6 @@ body.loginPage {
 }
 
 
-.loginHero::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.25); /* Oscurece ligeramente TODA la imagen */
-}
-
 
 
 .loginWrap {
