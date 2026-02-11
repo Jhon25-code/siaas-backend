@@ -413,8 +413,9 @@ body.loginPage {
   overflow: hidden;
   display: grid;
   grid-template-columns: 1.4fr 1fr;
-  background: #0b1220;
+  background: #0f172a;
 }
+
 
 .loginHero {
   position: relative;
@@ -462,8 +463,15 @@ body.loginPage {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(2,6,23,0.7), rgba(2,6,23,0.2));
+  background: linear-gradient(
+    90deg,
+    rgba(15, 23, 42, 0.55) 0%,
+    rgba(15, 23, 42, 0.35) 40%,
+    rgba(15, 23, 42, 0.15) 70%,
+    rgba(15, 23, 42, 0.05) 100%
+  );
 }
+
 
 .loginWrap {
   height: 100vh;
@@ -471,20 +479,21 @@ body.loginPage {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #f8fafc;
+  background: transparent; /* IMPORTANTE */
 }
+
 
 .loginCard {
   width: min(480px, 100%);
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(10px);
   border-radius: 24px;
   padding: 40px;
-  box-shadow:
-    0 40px 80px rgba(0,0,0,0.15),
-    0 10px 20px rgba(0,0,0,0.05);
-  border: 1px solid rgba(255,255,255,0.3);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.25);
 }
+
 .loginCard {
   animation: fadeInLogin 0.6s ease;
 }
