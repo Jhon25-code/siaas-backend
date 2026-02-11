@@ -246,60 +246,114 @@ app.get('/reports/incidents/excel', auth(REPORT_ROLES), async (req, res) => {
   }
 });
 
-// PDF
+// =========================================================
+// 📄 PDF GERENCIAL MEJORADO
+// =========================================================
 app.get('/reports/incidents/pdf', auth(REPORT_ROLES), (req, res) => {
   try {
-    const doc = new PDFDocument({ margin: 40 });
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename=incidentes.pdf');
 
     doc.pipe(res);
 
-    doc.fontSize(18).text('Reporte Gerencial de Incidentes', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(10).fillColor('#666')
-      .text(`Generado: ${new Date().toLocaleString('es-PE')}`, { align: 'center' });
-    doc.moveDown();
+    // -----------------------------------------
+    // TÍTULO
+    // -----------------------------------------
+    doc
+      .fontSize(18)
+      .fillColor('#000')
+      .text('REPORTE GERENCIAL DE INCIDENTES', { align: 'center' });
 
+    doc.moveDown(0.5);
+
+    doc
+      .fontSize(10)
+      .fillColor('#666')
+      .text(`Generado: ${new Date().toLocaleString('es-PE')}`, { align: 'center' });
+
+    doc.moveDown(1.2);
+    doc.fillColor('#111');
+
+    // -----------------------------------------
+    // CONSULTA BD
+    // -----------------------------------------
     db.all("SELECT * FROM incidents ORDER BY received_at DESC", [], (err, rows) => {
       if (err) {
         console.error('❌ ERROR BD (pdf):', err.message);
-        doc.fontSize(12).fillColor('red').text('Error leyendo base de datos.');
+        doc
+          .fontSize(12)
+          .fillColor('red')
+          .text('Error leyendo la base de datos.');
         doc.end();
         return;
       }
 
       const data = rows || [];
+
       if (!data.length) {
-        doc.fontSize(12).fillColor('#111').text('No hay incidentes registrados.');
+        doc
+          .fontSize(12)
+          .fillColor('#111')
+          .text('No hay incidentes registrados.');
         doc.end();
         return;
       }
 
-      doc.fillColor('#111');
-
+      // -----------------------------------------
+      // LISTADO DE INCIDENTES
+      // -----------------------------------------
       data.forEach((i, idx) => {
-        // salto de página simple
-        if (doc.y > 740) doc.addPage();
 
-        const line1 = `${idx + 1}. ${String(i.tipo || '').replaceAll('_', ' ')}  |  ${i.zone || '—'}  |  ${i.status || '—'}  |  ${i.received_at || '—'}`;
-        const line2 = `   📍 ${i.latitude ?? '—'}, ${i.longitude ?? '—'}   |   Score: ${i.smart_score ?? '—'}`;
-        const desc = (i.descripcion || '').toString().trim();
-
-        doc.fontSize(11).text(line1);
-        doc.fontSize(10).fillColor('#444').text(line2);
-
-        if (desc) {
-          doc.fontSize(10).fillColor('#555').text(`   ${desc}`);
+        // Salto de página automático
+        if (doc.y > 750) {
+          doc.addPage();
         }
 
-        doc.moveDown(0.6);
+        const fechaFormateada = i.received_at
+          ? new Date(i.received_at).toLocaleString('es-PE')
+          : '—';
+
+        const tipoLimpio = String(i.tipo || '')
+          .replaceAll('_', ' ')
+          .toUpperCase();
+
+        // Título del incidente
+        doc
+          .fontSize(12)
+          .fillColor('#000')
+          .text(`${idx + 1}. ${tipoLimpio}`);
+
+        doc.moveDown(0.2);
+
+        // Detalles
+        doc
+          .fontSize(10)
+          .fillColor('#444')
+          .text(`Zona: ${i.zone || '—'}`)
+          .text(`Estado: ${i.status || '—'}`)
+          .text(`Fecha: ${fechaFormateada}`)
+          .text(`Latitud: ${i.latitude ?? '—'}`)
+          .text(`Longitud: ${i.longitude ?? '—'}`)
+          .text(`Score: ${i.smart_score ?? '—'}`);
+
+        // Descripción si existe
+        if (i.descripcion && i.descripcion.trim() !== '') {
+          doc.moveDown(0.3);
+          doc
+            .fontSize(10)
+            .fillColor('#555')
+            .text(`Descripción: ${i.descripcion}`);
+        }
+
+        doc.moveDown(1);
         doc.fillColor('#111');
       });
 
       doc.end();
     });
+
   } catch (e) {
     console.error('❌ ERROR generando pdf:', e);
     return res.status(500).json({ error: 'Error generando PDF' });
