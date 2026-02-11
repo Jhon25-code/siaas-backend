@@ -495,4 +495,30 @@ body.loginPage {
   body.loginPage { grid-template-columns: 1fr; }
   .loginHero { display: none; }
   .loginWrap { background: #f1f5f9; }
+
+  /* =====================================================
+     🔄 BOTONES FLUJO DE ESTADOS (DENTRO DE TARJETAS)
+     ===================================================== */
+
+  .cardItem .statusActions {
+    margin-top: 14px;
+    display: flex;
+    gap: 8px;
+  }
+
+  /* Botón Atender (usa estilo OK existente pero más compacto) */
+  .cardItem .btnAttend {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  /* Botón Cerrar caso */
+  .cardItem .btnClose {
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
 }
+

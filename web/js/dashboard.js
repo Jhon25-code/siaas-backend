@@ -80,7 +80,9 @@ if (!WEB_ROLES_ALLOWED.includes(SESSION.role)) {
   window.location.href = '/login.html';
 }
 
-const CAN_CHANGE_STATUS = true;
+const CAN_CHANGE_STATUS =
+  ['TOPICO','SUPERVISOR','ADMIN'].includes(SESSION.role);
+
 
 // ==========================================
 // 1.1 ROLES PARA REPORTES (SOLO SUPERVISOR/ADMIN)
@@ -297,9 +299,12 @@ async function changeStatus(id, nextStatus, btn) {
 }
 
 // ==========================================
-// 7. RENDER TARJETAS
+// 7. RENDER TARJETAS (FLUJO PROFESIONAL)
 // ==========================================
 function renderCards(data) {
+  const cardsEl = document.getElementById('cards');
+  const emptyEl = document.getElementById('empty');
+
   cardsEl.innerHTML = '';
   emptyEl.textContent = '';
 
@@ -308,12 +313,9 @@ function renderCards(data) {
     statusNorm: normalizeStatus(i.status)
   }));
 
-  if (CURRENT_FILTER !== 'ALL') {
-    const f = CURRENT_FILTER === 'NUEVA' ? 'ABIERTO' : CURRENT_FILTER;
-    filtered = filtered.filter(i => i.statusNorm === f);
-  }
-
-  filtered.sort((a, b) => new Date(b.received_at) - new Date(a.received_at));
+  filtered.sort((a,b)=>
+    new Date(b.received_at) - new Date(a.received_at)
+  );
 
   if (!filtered.length) {
     emptyEl.textContent = 'No hay alertas.';
@@ -321,72 +323,71 @@ function renderCards(data) {
   }
 
   filtered.forEach(i => {
+
     const label = scoreLabel(i.smart_score ?? 0);
     const state = stateUI(i.statusNorm);
 
     const card = document.createElement('div');
     card.className = 'cardItem';
-    card.style.borderLeft = `4px solid ${sevColor(label)}`;
+    card.style.borderLeft =
+      `4px solid ${sevColor(label)}`;
 
-    // 🔥 Solo Supervisor/Admin pueden cambiar estado
-    const canChange =
-      SESSION.role === 'SUPERVISOR' ||
-      SESSION.role === 'ADMIN';
+    // 🔥 BOTONES PROFESIONALES
+    let actionsHTML = '';
+
+    if (CAN_CHANGE_STATUS) {
+      if (i.statusNorm === 'ABIERTO') {
+        actionsHTML = `
+          <div class="actions">
+            <button class="btn ok"
+              onclick="changeStatus('${i.id}','EN_ATENCION',this)">
+              Atender
+            </button>
+          </div>
+        `;
+      }
+
+      if (i.statusNorm === 'EN_ATENCION') {
+        actionsHTML = `
+          <div class="actions">
+            <button class="btn danger"
+              onclick="changeStatus('${i.id}','CERRADO',this)">
+              Cerrar caso
+            </button>
+          </div>
+        `;
+      }
+    }
 
     card.innerHTML = `
       <div class="row">
         <div>
-          <div class="title">${(i.tipo || '').replaceAll('_', ' ')}</div>
-          <div class="muted small">${fmtDate(i.received_at)}</div>
-
-          ${
-            canChange
-              ? `
-                <select class="statusSelect" data-id="${i.id}">
-                  <option value="ABIERTO" ${i.statusNorm === 'ABIERTO' ? 'selected' : ''}>Abierto</option>
-                  <option value="EN_ATENCION" ${i.statusNorm === 'EN_ATENCION' ? 'selected' : ''}>En atención</option>
-                  <option value="CERRADO" ${i.statusNorm === 'CERRADO' ? 'selected' : ''}>Cerrado</option>
-                </select>
-              `
-              : `<span class="stateBadge ${state.cls}">${state.label}</span>`
-          }
+          <div class="title">
+            ${(i.tipo || '').replaceAll('_',' ')}
+          </div>
+          <div class="muted small">
+            ${fmtDate(i.received_at)}
+          </div>
+          <span class="stateBadge ${state.cls}">
+            ${state.label}
+          </span>
         </div>
-
-        <span class="badge ${sevColor(label)}">${label}</span>
+        <span class="badge ${sevColor(label)}">
+          ${label}
+        </span>
       </div>
 
-      <div class="muted small">📍 ${fmtCoord(i.latitude)}, ${fmtCoord(i.longitude)}</div>
+      <div class="muted small">
+        📍 ${fmtCoord(i.latitude)},
+        ${fmtCoord(i.longitude)}
+      </div>
+
+      ${actionsHTML}
     `;
 
     cardsEl.appendChild(card);
   });
-
-  // 🔥 Evento cambio de estado
-  document.querySelectorAll('.statusSelect').forEach(sel => {
-    sel.addEventListener('change', async (e) => {
-      const id = e.target.dataset.id;
-      const newStatus = e.target.value;
-
-      try {
-        const res = await fetch(`/incidents/${id}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SESSION.token}`
-          },
-          body: JSON.stringify({ status: newStatus })
-        });
-
-        if (!res.ok) throw new Error('Error actualizando');
-
-        load(); // 🔥 refresca tarjetas y mapa
-      } catch (err) {
-        alert('Error actualizando estado');
-      }
-    });
-  });
 }
-
 // ==========================================
 // 8. MAPA (CONTROL DE CENTRADO CORRECTO)
 // ==========================================
