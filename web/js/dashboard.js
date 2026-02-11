@@ -328,22 +328,64 @@ function renderCards(data) {
     card.className = 'cardItem';
     card.style.borderLeft = `4px solid ${sevColor(label)}`;
 
+    // 🔥 Solo Supervisor/Admin pueden cambiar estado
+    const canChange =
+      SESSION.role === 'SUPERVISOR' ||
+      SESSION.role === 'ADMIN';
+
     card.innerHTML = `
       <div class="row">
         <div>
           <div class="title">${(i.tipo || '').replaceAll('_', ' ')}</div>
           <div class="muted small">${fmtDate(i.received_at)}</div>
-          <span class="stateBadge ${state.cls}">${state.label}</span>
+
+          ${
+            canChange
+              ? `
+                <select class="statusSelect" data-id="${i.id}">
+                  <option value="ABIERTO" ${i.statusNorm === 'ABIERTO' ? 'selected' : ''}>Abierto</option>
+                  <option value="EN_ATENCION" ${i.statusNorm === 'EN_ATENCION' ? 'selected' : ''}>En atención</option>
+                  <option value="CERRADO" ${i.statusNorm === 'CERRADO' ? 'selected' : ''}>Cerrado</option>
+                </select>
+              `
+              : `<span class="stateBadge ${state.cls}">${state.label}</span>`
+          }
         </div>
+
         <span class="badge ${sevColor(label)}">${label}</span>
       </div>
+
       <div class="muted small">📍 ${fmtCoord(i.latitude)}, ${fmtCoord(i.longitude)}</div>
     `;
 
     cardsEl.appendChild(card);
   });
-}
 
+  // 🔥 Evento cambio de estado
+  document.querySelectorAll('.statusSelect').forEach(sel => {
+    sel.addEventListener('change', async (e) => {
+      const id = e.target.dataset.id;
+      const newStatus = e.target.value;
+
+      try {
+        const res = await fetch(`/incidents/${id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SESSION.token}`
+          },
+          body: JSON.stringify({ status: newStatus })
+        });
+
+        if (!res.ok) throw new Error('Error actualizando');
+
+        load(); // 🔥 refresca tarjetas y mapa
+      } catch (err) {
+        alert('Error actualizando estado');
+      }
+    });
+  });
+}
 
 // ==========================================
 // 8. MAPA (CONTROL DE CENTRADO CORRECTO)
