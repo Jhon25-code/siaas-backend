@@ -422,22 +422,28 @@ body.loginPage {
   background-image: url("../images/bg_agroindustrial.jpg");
   background-size: cover;
   background-position: center;
+  background-repeat: no-repeat;
   display: flex;
-  align-items: flex-end;
-  padding: 60px;
+  align-items: center;
+  justify-content: center;
   overflow: hidden;
 }
 
 /* Overlay premium */
-.loginHero::before {
+.loginHero::after {
   content: "";
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(120deg, rgba(15,23,42,0.85), rgba(15,23,42,0.4)),
-    linear-gradient(90deg, rgba(31,111,59,0.4), transparent);
+  background: linear-gradient(
+    90deg,
+    rgba(7, 17, 33, 0.85) 0%,
+    rgba(7, 17, 33, 0.6) 40%,
+    rgba(7, 17, 33, 0.2) 70%,
+    rgba(7, 17, 33, 0.05) 100%
+  );
   backdrop-filter: blur(2px);
 }
+
 
 /* Texto institucional */
 .loginHero::after {
@@ -470,8 +476,8 @@ body.loginPage {
 
 .loginCard {
   width: min(480px, 100%);
-  background: rgba(255,255,255,0.96);
-  backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
   border-radius: 24px;
   padding: 40px;
   box-shadow:
